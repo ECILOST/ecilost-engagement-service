@@ -32,4 +32,13 @@ export interface AuctionRoundClosedEvent extends EventMetadata<'auction.round.cl
   closedAt: string;
 }
 
-export type AuctionEvent = AuctionBidAcceptedEvent | AuctionRoundClosedEvent;
+export interface AuctionRoomAccessClosedEvent extends EventMetadata<'auction.room.access.closed.v1'> {
+  roomId: string;
+  userId: string;
+  reason: 'ROOM_FULL' | 'ROOM_STARTED';
+}
+
+export type AuctionEvent =
+  | AuctionBidAcceptedEvent
+  | AuctionRoundClosedEvent
+  | AuctionRoomAccessClosedEvent;

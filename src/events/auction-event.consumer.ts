@@ -10,7 +10,7 @@ const EXCHANGE = 'ecilost.events';
 const DEAD_LETTER_EXCHANGE = 'ecilost.events.dlx';
 const QUEUE = 'engagement.events.v1';
 const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
-const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.closed.v1'] as const;
+const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.closed.v1', 'auction.room.access.closed.v1'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -38,6 +38,21 @@ function parseEvent(value: unknown): AuctionEvent | null {
       typeof value.endsAt === 'string' &&
       typeof value.sequence === 'string';
     return valid ? (value as unknown as AuctionBidAcceptedEvent) : null;
+  }
+
+  if (value.eventType === 'auction.room.access.closed.v1') {
+    const valid =
+      typeof value.roomId === 'string' &&
+      typeof value.userId === 'string' &&
+      (value.reason === 'ROOM_FULL' || value.reason === 'ROOM_STARTED');
+    return valid ? (value as unknown as AuctionEvent) : null;
+  }
+  if (value.eventType === 'auction.room.access.closed.v1') {
+    const valid =
+      typeof value.roomId === 'string' &&
+      typeof value.userId === 'string' &&
+      (value.reason === 'ROOM_FULL' || value.reason === 'ROOM_STARTED');
+    return valid ? (value as unknown as AuctionEvent) : null;
   }
 
   if (value.eventType === 'auction.round.closed.v1') {
@@ -164,6 +179,21 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    if (event.eventType === 'auction.room.access.closed.v1') {
+      await tx.notification.create({
+        data: {
+          id: event.eventId,
+          eventId: event.eventId,
+          kind: 'ACCESS_CLOSED',
+          roomId: event.roomId,
+          recipientId: event.userId,
+          payload: {
+            reason: event.reason,
+          },
+        },
+      });
+      return;
+    }
     await tx.notification.create({
       data: {
         id: event.eventId,

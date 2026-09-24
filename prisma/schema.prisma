@@ -12,6 +12,7 @@ datasource db {
 enum NotificationKind {
   OUTBID
   ROUND_CLOSED
+  ACCESS_CLOSED
 }
 
 model ConsumedEvent {
