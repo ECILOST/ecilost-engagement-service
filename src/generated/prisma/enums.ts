@@ -11,8 +11,7 @@
 
 export const NotificationKind = {
   OUTBID: 'OUTBID',
-  ROUND_CLOSED: 'ROUND_CLOSED',
-  ACCESS_CLOSED: 'ACCESS_CLOSED'
+  ROUND_CLOSED: 'ROUND_CLOSED'
 } as const
 
 export type NotificationKind = (typeof NotificationKind)[keyof typeof NotificationKind]

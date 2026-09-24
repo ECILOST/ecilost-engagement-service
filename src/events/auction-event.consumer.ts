@@ -4,13 +4,19 @@ import amqp from 'amqplib';
 import type { Channel, Message } from 'amqplib';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { AuctionEvent, AuctionBidAcceptedEvent, AuctionRoundClosedEvent } from './event-contracts.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import type {
+  AuctionEvent,
+  AuctionBidAcceptedEvent,
+  AuctionRoundActivatedEvent,
+  AuctionRoundClosedEvent,
+} from './event-contracts.js';
 
 const EXCHANGE = 'ecilost.events';
 const DEAD_LETTER_EXCHANGE = 'ecilost.events.dlx';
 const QUEUE = 'engagement.events.v1';
 const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
-const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.closed.v1', 'auction.room.access.closed.v1'] as const;
+const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.activated.v1', 'auction.round.closed.v1'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -22,12 +28,12 @@ function parseEvent(value: unknown): AuctionEvent | null {
     return null;
   }
   if (Number.isNaN(Date.parse(value.occurredAt))) return null;
+  if (typeof value.roomId !== 'string' || typeof value.roundId !== 'string' || typeof value.position !== 'number') {
+    return null;
+  }
 
   if (value.eventType === 'auction.bid.accepted.v1') {
     const valid =
-      typeof value.roomId === 'string' &&
-      typeof value.roundId === 'string' &&
-      typeof value.position === 'number' &&
       typeof value.bidId === 'string' &&
       typeof value.bidderId === 'string' &&
       typeof value.amount === 'string' &&
@@ -40,32 +46,19 @@ function parseEvent(value: unknown): AuctionEvent | null {
     return valid ? (value as unknown as AuctionBidAcceptedEvent) : null;
   }
 
-  if (value.eventType === 'auction.room.access.closed.v1') {
+  if (value.eventType === 'auction.round.activated.v1') {
     const valid =
-      typeof value.roomId === 'string' &&
-      typeof value.userId === 'string' &&
-      (value.reason === 'ROOM_FULL' || value.reason === 'ROOM_STARTED');
-    return valid ? (value as unknown as AuctionEvent) : null;
-  }
-  if (value.eventType === 'auction.room.access.closed.v1') {
-    const valid =
-      typeof value.roomId === 'string' &&
-      typeof value.userId === 'string' &&
-      (value.reason === 'ROOM_FULL' || value.reason === 'ROOM_STARTED');
-    return valid ? (value as unknown as AuctionEvent) : null;
+      typeof value.currentPrice === 'string' &&
+      typeof value.startedAt === 'string' &&
+      typeof value.endsAt === 'string' &&
+      Array.isArray(value.entries);
+    return valid ? (value as unknown as AuctionRoundActivatedEvent) : null;
   }
 
   if (value.eventType === 'auction.round.closed.v1') {
     const valid =
-      typeof value.roomId === 'string' &&
-      typeof value.roundId === 'string' &&
-      typeof value.position === 'number' &&
       typeof value.currentPrice === 'string' &&
       (typeof value.currentBidderId === 'string' || value.currentBidderId === null) &&
-      (typeof value.startedAt === 'string' || value.startedAt === null) &&
-      (typeof value.endsAt === 'string' || value.endsAt === null) &&
-      (typeof value.maximumEndsAt === 'string' || value.maximumEndsAt === null) &&
-      Array.isArray(value.entries) &&
       typeof value.closedAt === 'string';
     return valid ? (value as unknown as AuctionRoundClosedEvent) : null;
   }
@@ -82,6 +75,7 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   async onModuleInit() {
@@ -107,7 +101,7 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
     await this.channel.consume(QUEUE, (message) => {
       if (message) void this.captureEvent(message);
     });
-    this.logger.log('Consuming Auction events into the durable inbox and notification projection.');
+    this.logger.log('Consuming Auction events into the durable inbox, notifications and realtime channel.');
   }
 
   async onModuleDestroy() {
@@ -123,8 +117,9 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    let processedNow: AuctionEvent | null = null;
     try {
-      await this.prisma.$transaction(async (tx) => {
+      processedNow = await this.prisma.$transaction(async (tx) => {
         await tx.consumedEvent.createMany({
           data: [{
             eventId: event.eventId,
@@ -138,25 +133,30 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
         const stored = await tx.consumedEvent.findUnique({ where: { eventId: event.eventId } });
         if (!stored) throw new Error('Event was not persisted to the inbox.');
 
-        if (stored.processedAt) return;
+        // Un reenvio de RabbitMQ no vuelve a notificar: el evento ya se proceso una vez.
+        if (stored.processedAt) return null;
 
-        const storedEvent = parseEvent(stored.payload);
-        if (!storedEvent) throw new Error('Stored event payload is invalid.');
-
-        await this.createNotification(tx, storedEvent);
+        await this.createNotification(tx, event);
         await tx.consumedEvent.update({
           where: { eventId: stored.eventId },
           data: { processedAt: new Date(), attempts: { increment: 1 }, lastError: null },
         });
+        return event;
       });
       this.channel?.ack(message);
     } catch (error) {
       this.logger.error('Could not persist or project Auction event; it was sent to the dead-letter queue.');
       this.channel?.nack(message, false, false);
+      return;
     }
+
+    // Se empuja a los clientes solo despues del commit y solo la primera vez.
+    if (processedNow) this.realtime.publish(processedNow);
   }
 
   private async createNotification(tx: Prisma.TransactionClient, event: AuctionEvent) {
+    if (event.eventType === 'auction.round.activated.v1') return;
+
     if (event.eventType === 'auction.bid.accepted.v1') {
       if (!event.previousBidderId || event.previousBidderId === event.bidderId) return;
 
@@ -179,21 +179,6 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    if (event.eventType === 'auction.room.access.closed.v1') {
-      await tx.notification.create({
-        data: {
-          id: event.eventId,
-          eventId: event.eventId,
-          kind: 'ACCESS_CLOSED',
-          roomId: event.roomId,
-          recipientId: event.userId,
-          payload: {
-            reason: event.reason,
-          },
-        },
-      });
-      return;
-    }
     await tx.notification.create({
       data: {
         id: event.eventId,

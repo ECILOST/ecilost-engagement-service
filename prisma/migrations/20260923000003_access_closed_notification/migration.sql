@@ -1,1 +1,0 @@
-ALTER TYPE "NotificationKind" ADD VALUE 'ACCESS_CLOSED';
