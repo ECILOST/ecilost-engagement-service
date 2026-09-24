@@ -9,6 +9,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum NotificationKind {
+  OUTBID
+  ROUND_CLOSED
+}
+
 model ConsumedEvent {
   eventId     String   @id
   eventType   String
@@ -21,4 +26,18 @@ model ConsumedEvent {
 
   @@index([processedAt, receivedAt])
   @@map("consumed_events")
+}
+
+model Notification {
+  id          String           @id
+  eventId     String           @unique
+  kind        NotificationKind
+  roomId      String
+  recipientId String?
+  payload     Json
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, createdAt])
+  @@index([roomId, createdAt])
+  @@map("notifications")
 }

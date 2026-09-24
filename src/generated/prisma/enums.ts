@@ -9,7 +9,9 @@
 * 🟢 You can import this file directly.
 */
 
+export const NotificationKind = {
+  OUTBID: 'OUTBID',
+  ROUND_CLOSED: 'ROUND_CLOSED'
+} as const
 
-
-// This file is empty because there are no enums in the schema.
-export {}
+export type NotificationKind = (typeof NotificationKind)[keyof typeof NotificationKind]

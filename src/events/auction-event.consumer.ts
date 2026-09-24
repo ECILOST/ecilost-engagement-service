@@ -4,7 +4,7 @@ import amqp from 'amqplib';
 import type { Channel, Message } from 'amqplib';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { AuctionEvent } from './event-contracts.js';
+import type { AuctionEvent, AuctionBidAcceptedEvent, AuctionRoundClosedEvent } from './event-contracts.js';
 
 const EXCHANGE = 'ecilost.events';
 const DEAD_LETTER_EXCHANGE = 'ecilost.events.dlx';
@@ -37,7 +37,7 @@ function parseEvent(value: unknown): AuctionEvent | null {
       typeof value.currentPrice === 'string' &&
       typeof value.endsAt === 'string' &&
       typeof value.sequence === 'string';
-    return valid ? (value as unknown as AuctionEvent) : null;
+    return valid ? (value as unknown as AuctionBidAcceptedEvent) : null;
   }
 
   if (value.eventType === 'auction.round.closed.v1') {
@@ -52,7 +52,7 @@ function parseEvent(value: unknown): AuctionEvent | null {
       (typeof value.maximumEndsAt === 'string' || value.maximumEndsAt === null) &&
       Array.isArray(value.entries) &&
       typeof value.closedAt === 'string';
-    return valid ? (value as unknown as AuctionEvent) : null;
+    return valid ? (value as unknown as AuctionRoundClosedEvent) : null;
   }
 
   return null;
@@ -92,7 +92,7 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
     await this.channel.consume(QUEUE, (message) => {
       if (message) void this.captureEvent(message);
     });
-    this.logger.log('Consuming Auction events into the durable inbox.');
+    this.logger.log('Consuming Auction events into the durable inbox and notification projection.');
   }
 
   async onModuleDestroy() {
@@ -109,24 +109,77 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      await this.prisma.consumedEvent.create({
-        data: {
-          eventId: event.eventId,
-          eventType: event.eventType,
-          occurredAt: new Date(event.occurredAt),
-          payload: event as unknown as Prisma.InputJsonObject,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.consumedEvent.createMany({
+          data: [{
+            eventId: event.eventId,
+            eventType: event.eventType,
+            occurredAt: new Date(event.occurredAt),
+            payload: event as unknown as Prisma.InputJsonObject,
+          }],
+          skipDuplicates: true,
+        });
+
+        const stored = await tx.consumedEvent.findUnique({ where: { eventId: event.eventId } });
+        if (!stored) throw new Error('Event was not persisted to the inbox.');
+
+        if (stored.processedAt) return;
+
+        const storedEvent = parseEvent(stored.payload);
+        if (!storedEvent) throw new Error('Stored event payload is invalid.');
+
+        await this.createNotification(tx, storedEvent);
+        await tx.consumedEvent.update({
+          where: { eventId: stored.eventId },
+          data: { processedAt: new Date(), attempts: { increment: 1 }, lastError: null },
+        });
       });
       this.channel?.ack(message);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        this.channel?.ack(message);
-        return;
-      }
-
-      this.logger.error('Could not persist Auction event; it was sent to the dead-letter queue.');
+      this.logger.error('Could not persist or project Auction event; it was sent to the dead-letter queue.');
       this.channel?.nack(message, false, false);
     }
+  }
+
+  private async createNotification(tx: Prisma.TransactionClient, event: AuctionEvent) {
+    if (event.eventType === 'auction.bid.accepted.v1') {
+      if (!event.previousBidderId || event.previousBidderId === event.bidderId) return;
+
+      await tx.notification.create({
+        data: {
+          id: event.eventId,
+          eventId: event.eventId,
+          kind: 'OUTBID',
+          roomId: event.roomId,
+          recipientId: event.previousBidderId,
+          payload: {
+            bidId: event.bidId,
+            roundId: event.roundId,
+            position: event.position,
+            currentPrice: event.currentPrice,
+            endsAt: event.endsAt,
+          },
+        },
+      });
+      return;
+    }
+
+    await tx.notification.create({
+      data: {
+        id: event.eventId,
+        eventId: event.eventId,
+        kind: 'ROUND_CLOSED',
+        roomId: event.roomId,
+        recipientId: null,
+        payload: {
+          roundId: event.roundId,
+          position: event.position,
+          currentPrice: event.currentPrice,
+          currentBidderId: event.currentBidderId,
+          closedAt: event.closedAt,
+        },
+      },
+    });
   }
 
   private parseBody(message: Message): unknown {

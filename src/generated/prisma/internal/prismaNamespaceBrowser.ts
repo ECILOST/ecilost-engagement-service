@@ -51,7 +51,8 @@ export const AnyNull = runtime.AnyNull
 
 
 export const ModelName = {
-  ConsumedEvent: 'ConsumedEvent'
+  ConsumedEvent: 'ConsumedEvent',
+  Notification: 'Notification'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -82,6 +83,19 @@ export const ConsumedEventScalarFieldEnum = {
 } as const
 
 export type ConsumedEventScalarFieldEnum = (typeof ConsumedEventScalarFieldEnum)[keyof typeof ConsumedEventScalarFieldEnum]
+
+
+export const NotificationScalarFieldEnum = {
+  id: 'id',
+  eventId: 'eventId',
+  kind: 'kind',
+  roomId: 'roomId',
+  recipientId: 'recipientId',
+  payload: 'payload',
+  createdAt: 'createdAt'
+} as const
+
+export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -9,4 +9,5 @@
  * 🟢 You can import this file directly.
  */
 export type * from './models/ConsumedEvent.js'
+export type * from './models/Notification.js'
 export type * from './commonInputTypes.js'

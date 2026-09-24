@@ -22,3 +22,8 @@ export * from './enums.js';
  * 
  */
 export type ConsumedEvent = Prisma.ConsumedEventModel
+/**
+ * Model Notification
+ * 
+ */
+export type Notification = Prisma.NotificationModel
