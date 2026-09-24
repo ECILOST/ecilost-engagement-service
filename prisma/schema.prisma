@@ -1,0 +1,24 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ConsumedEvent {
+  eventId     String   @id
+  eventType   String
+  payload     Json
+  occurredAt  DateTime
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+  attempts    Int      @default(0)
+  lastError   String?
+
+  @@index([processedAt, receivedAt])
+  @@map("consumed_events")
+}
