@@ -4,6 +4,6 @@ import { TokenVerifier } from './token-verifier.js';
 
 @Module({
   providers: [TokenVerifier, RealtimeGateway],
-  exports: [RealtimeGateway],
+  exports: [RealtimeGateway, TokenVerifier],
 })
 export class RealtimeModule {}

@@ -36,6 +36,10 @@ export interface AuctionRoundClosedEvent extends EventMetadata<'auction.round.cl
   currentPrice: string;
   currentBidderId: string | null;
   closedAt: string;
+  /** Desde HU-28. Los eventos anteriores no lo traen: se deduce de `currentBidderId`. */
+  result?: 'AWARDED' | 'DESERTED';
+  winnerId?: string | null;
+  winningAmount?: string | null;
 }
 
 export type AuctionEvent = AuctionBidAcceptedEvent | AuctionRoundActivatedEvent | AuctionRoundClosedEvent;

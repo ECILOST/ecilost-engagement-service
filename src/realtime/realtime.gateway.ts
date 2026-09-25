@@ -19,6 +19,7 @@ const userChannel = (userId: string) => `user:${userId}`;
  * - `round.price`: nuevo precio y `endsAt` tras una puja aceptada (a toda la sala).
  * - `round.activated` / `round.closed`: transicion de ronda (a toda la sala).
  * - `bid.outbid`: aviso personal al participante superado.
+ * - `round.won`: aviso personal al ganador cuando la ronda se adjudica.
  * Cada mensaje trae `eventId` (para descartar repetidos) y `serverTime`, con el que
  * el cliente calcula el contador sin depender de su reloj local. Al reconectar, el
  * cliente vuelve a consultar `GET /rooms/:roomId/state` en Auction.
@@ -99,15 +100,28 @@ export class RealtimeGateway implements OnGatewayInit {
       return;
     }
 
+    // A la sala va el resultado, no quien gano: eso solo se le dice al ganador (HU-29).
+    const winnerId = event.winnerId !== undefined ? event.winnerId : event.currentBidderId;
+    const result = event.result ?? (winnerId ? 'AWARDED' : 'DESERTED');
     room.emit('round.closed', {
       eventId: event.eventId,
       roomId: event.roomId,
       roundId: event.roundId,
       position: event.position,
       currentPrice: event.currentPrice,
-      currentBidderId: event.currentBidderId,
+      result,
       closedAt: event.closedAt,
       serverTime,
     });
+    if (result === 'AWARDED' && winnerId) {
+      this.server.to(userChannel(winnerId)).emit('round.won', {
+        eventId: event.eventId,
+        roomId: event.roomId,
+        roundId: event.roundId,
+        position: event.position,
+        amount: event.winningAmount ?? event.currentPrice,
+        serverTime,
+      });
+    }
   }
 }

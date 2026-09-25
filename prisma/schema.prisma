@@ -12,6 +12,7 @@ datasource db {
 enum NotificationKind {
   OUTBID
   ROUND_CLOSED
+  ROUND_WON
 }
 
 model ConsumedEvent {
@@ -30,13 +31,17 @@ model ConsumedEvent {
 
 model Notification {
   id          String           @id
-  eventId     String           @unique
+  // Un evento puede producir varias notificaciones (el cierre avisa a la sala y al ganador),
+  // pero nunca dos del mismo tipo: esa es la llave que hace idempotente reprocesarlo.
+  eventId     String
   kind        NotificationKind
   roomId      String
   recipientId String?
   payload     Json
   createdAt   DateTime         @default(now())
+  readAt      DateTime?
 
+  @@unique([eventId, kind])
   @@index([recipientId, createdAt])
   @@index([roomId, createdAt])
   @@map("notifications")

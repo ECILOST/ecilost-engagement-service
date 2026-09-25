@@ -16,6 +16,8 @@ const EXCHANGE = 'ecilost.events';
 const DEAD_LETTER_EXCHANGE = 'ecilost.events.dlx';
 const QUEUE = 'engagement.events.v1';
 const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
+/** Cuantos `eventId` recientes se recuerdan para no reemitir una reentrega. */
+const RECENT_EVENTS_WINDOW = 5_000;
 const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.activated.v1', 'auction.round.closed.v1'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,6 +73,7 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuctionEventConsumer.name);
   private connection?: Awaited<ReturnType<typeof amqp.connect>>;
   private channel?: Channel;
+  private readonly recent = new Set<string>();
 
   constructor(
     private readonly config: ConfigService,
@@ -109,6 +112,19 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
     await this.connection?.close().catch(() => undefined);
   }
 
+  /**
+   * Empuja primero y persiste despues.
+   *
+   * La difusion no espera a la base: el precio llega a la sala en cuanto llega el evento, y
+   * una escritura lenta no frena a los clientes. El orden se conserva porque todo lo que va
+   * antes del primer `await` es sincrono: RabbitMQ entrega en orden y cada evento se emite
+   * antes de que empiece a persistirse el siguiente, aunque las escrituras corran a la vez.
+   *
+   * No hay transaccion: cada escritura es idempotente por su llave (`eventId` en el inbox,
+   * `eventId + kind` en las notificaciones), asi que una reentrega no duplica nada. Los
+   * repetidos se filtran para no emitirlos dos veces con una ventana en memoria; tras un
+   * reinicio podria reemitirse alguno, y el cliente los descarta por `eventId` y `sequence`.
+   */
   private async captureEvent(message: Message) {
     const event = parseEvent(this.parseBody(message));
     if (!event || (message.properties.messageId && message.properties.messageId !== event.eventId)) {
@@ -117,83 +133,45 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    let processedNow: AuctionEvent | null = null;
+    if (this.remember(event.eventId)) this.realtime.publish(event);
+
     try {
-      processedNow = await this.prisma.$transaction(async (tx) => {
-        await tx.consumedEvent.createMany({
-          data: [{
-            eventId: event.eventId,
-            eventType: event.eventType,
-            occurredAt: new Date(event.occurredAt),
-            payload: event as unknown as Prisma.InputJsonObject,
-          }],
-          skipDuplicates: true,
-        });
-
-        const stored = await tx.consumedEvent.findUnique({ where: { eventId: event.eventId } });
-        if (!stored) throw new Error('Event was not persisted to the inbox.');
-
-        // Un reenvio de RabbitMQ no vuelve a notificar: el evento ya se proceso una vez.
-        if (stored.processedAt) return null;
-
-        await this.createNotification(tx, event);
-        await tx.consumedEvent.update({
-          where: { eventId: stored.eventId },
-          data: { processedAt: new Date(), attempts: { increment: 1 }, lastError: null },
-        });
-        return event;
-      });
+      await this.persist(event);
       this.channel?.ack(message);
     } catch (error) {
-      this.logger.error('Could not persist or project Auction event; it was sent to the dead-letter queue.');
+      this.logger.error(`Could not persist Auction event ${event.eventId}; it was sent to the dead-letter queue: ${String(error)}`);
       this.channel?.nack(message, false, false);
-      return;
     }
-
-    // Se empuja a los clientes solo despues del commit y solo la primera vez.
-    if (processedNow) this.realtime.publish(processedNow);
   }
 
-  private async createNotification(tx: Prisma.TransactionClient, event: AuctionEvent) {
-    if (event.eventType === 'auction.round.activated.v1') return;
+  /** Cierto la primera vez que se ve un `eventId` dentro de la ventana reciente. */
+  private remember(eventId: string): boolean {
+    if (this.recent.has(eventId)) return false;
+    this.recent.add(eventId);
+    // Un Set recuerda el orden de insercion: el primero es el mas viejo.
+    if (this.recent.size > RECENT_EVENTS_WINDOW) this.recent.delete(this.recent.values().next().value as string);
+    return true;
+  }
 
-    if (event.eventType === 'auction.bid.accepted.v1') {
-      if (!event.previousBidderId || event.previousBidderId === event.bidderId) return;
+  private async persist(event: AuctionEvent) {
+    await this.prisma.consumedEvent.createMany({
+      data: [{
+        eventId: event.eventId,
+        eventType: event.eventType,
+        occurredAt: new Date(event.occurredAt),
+        payload: event as unknown as Prisma.InputJsonObject,
+      }],
+      skipDuplicates: true,
+    });
 
-      await tx.notification.create({
-        data: {
-          id: event.eventId,
-          eventId: event.eventId,
-          kind: 'OUTBID',
-          roomId: event.roomId,
-          recipientId: event.previousBidderId,
-          payload: {
-            bidId: event.bidId,
-            roundId: event.roundId,
-            position: event.position,
-            currentPrice: event.currentPrice,
-            endsAt: event.endsAt,
-          },
-        },
-      });
-      return;
+    const notifications = notificationsFor(event);
+    if (notifications.length) {
+      await this.prisma.notification.createMany({ data: notifications, skipDuplicates: true });
     }
 
-    await tx.notification.create({
-      data: {
-        id: event.eventId,
-        eventId: event.eventId,
-        kind: 'ROUND_CLOSED',
-        roomId: event.roomId,
-        recipientId: null,
-        payload: {
-          roundId: event.roundId,
-          position: event.position,
-          currentPrice: event.currentPrice,
-          currentBidderId: event.currentBidderId,
-          closedAt: event.closedAt,
-        },
-      },
+    await this.prisma.consumedEvent.update({
+      where: { eventId: event.eventId },
+      data: { processedAt: new Date(), attempts: { increment: 1 }, lastError: null },
     });
   }
 
@@ -204,4 +182,35 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       return null;
     }
   }
+}
+
+/**
+ * Lo que un evento deja en la bandeja de cada persona (HU-27, HU-29):
+ * - superado: al participante que dejo de liderar;
+ * - cierre de ronda: a toda la sala, y aparte al ganador.
+ */
+export function notificationsFor(event: AuctionEvent): Prisma.NotificationCreateManyInput[] {
+  const base = { eventId: event.eventId, roomId: event.roomId };
+
+  if (event.eventType === 'auction.bid.accepted.v1') {
+    if (!event.previousBidderId || event.previousBidderId === event.bidderId) return [];
+    return [{
+      ...base,
+      id: `${event.eventId}:OUTBID`,
+      kind: 'OUTBID',
+      recipientId: event.previousBidderId,
+      payload: { bidId: event.bidId, roundId: event.roundId, position: event.position, currentPrice: event.currentPrice, endsAt: event.endsAt },
+    }];
+  }
+
+  if (event.eventType === 'auction.round.closed.v1') {
+    const winnerId = event.winnerId !== undefined ? event.winnerId : event.currentBidderId;
+    const result = event.result ?? (winnerId ? 'AWARDED' : 'DESERTED');
+    const payload = { roundId: event.roundId, position: event.position, currentPrice: event.currentPrice, result, closedAt: event.closedAt };
+    const closed: Prisma.NotificationCreateManyInput = { ...base, id: `${event.eventId}:ROUND_CLOSED`, kind: 'ROUND_CLOSED', recipientId: null, payload };
+    if (result !== 'AWARDED' || !winnerId) return [closed];
+    return [closed, { ...base, id: `${event.eventId}:ROUND_WON`, kind: 'ROUND_WON', recipientId: winnerId, payload }];
+  }
+
+  return [];
 }

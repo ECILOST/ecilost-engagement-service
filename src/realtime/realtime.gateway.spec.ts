@@ -56,6 +56,22 @@ describe('RealtimeGateway', () => {
       eventId: 'c', eventType: 'auction.round.closed.v1', occurredAt: bid.occurredAt, roomId: 'room', roundId: 'round',
       position: 1, currentPrice: '20.00', currentBidderId: 'bob', closedAt: bid.occurredAt,
     });
-    expect(emitted.map(({ channel, name }) => `${channel} ${name}`)).toEqual(['room:room round.activated', 'room:room round.closed']);
+    expect(emitted.map(({ channel, name }) => `${channel} ${name}`)).toEqual([
+      'room:room round.activated',
+      'room:room round.closed',
+      'user:bob round.won',
+    ]);
+    // La sala conoce el resultado, no quien gano.
+    expect(emitted[1].payload).toMatchObject({ result: 'AWARDED' });
+    expect(emitted[1].payload).not.toHaveProperty('currentBidderId');
+  });
+
+  it('una ronda desierta no avisa a ningun ganador', () => {
+    const { gateway, emitted } = setup();
+    gateway.publish({
+      eventId: 'c', eventType: 'auction.round.closed.v1', occurredAt: bid.occurredAt, roomId: 'room', roundId: 'round',
+      position: 1, currentPrice: '50.00', currentBidderId: null, closedAt: bid.occurredAt, result: 'DESERTED', winnerId: null,
+    });
+    expect(emitted.map(({ name }) => name)).toEqual(['round.closed']);
   });
 });
