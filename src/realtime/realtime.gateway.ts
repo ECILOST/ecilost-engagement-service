@@ -8,14 +8,26 @@ import {
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import type { AuctionEvent, RoomStatus } from '../events/event-contracts.js';
+import { RoomAccessVerifier } from './room-access.js';
 import { TokenVerifier } from './token-verifier.js';
 
-const roomChannel = (roomId: string) => `room:${roomId}`;
+const ROOM_PREFIX = 'room:';
+const roomChannel = (roomId: string) => `${ROOM_PREFIX}${roomId}`;
 const userChannel = (userId: string) => `user:${userId}`;
+
+/** Los roomId de auction son UUID: cualquier otro texto no es una sala. */
+const ROOM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Salas que una conexion escucha a la vez. Una pantalla escucha una sola; el margen cubre
+ * pestañas que comparten conexion y la transicion entre pantallas.
+ */
+export const MAX_ROOMS_PER_CONNECTION = 5;
 
 /**
  * Canal de tiempo real de la sala. El cliente se conecta con
- * `io('/realtime', { auth: { token } })`, emite `room.join` con el roomId y recibe:
+ * `io('/realtime', { auth: { token } })`, emite `room.join` con `{ roomId, token }` (ver
+ * `joinRoom`: auction confirma la sala) y recibe:
  * - `round.price`: nuevo precio y `endsAt` tras una puja aceptada (a toda la sala). Trae
  *   `automatic` si la hizo el motor de puja automatica (HU-22).
  * - `round.extended`: la puja cayo en el ultimo minuto y movio el cierre (HU-23).
@@ -31,7 +43,7 @@ const userChannel = (userId: string) => `user:${userId}`;
 export class RealtimeGateway implements OnGatewayInit {
   @WebSocketServer() private server: Namespace;
 
-  constructor(private readonly tokens: TokenVerifier) {}
+  constructor(private readonly tokens: TokenVerifier, private readonly rooms: RoomAccessVerifier) {}
 
   afterInit(server: Namespace) {
     // El middleware autentica antes de aceptar la conexion.
@@ -44,11 +56,38 @@ export class RealtimeGateway implements OnGatewayInit {
     });
   }
 
+  /**
+   * Entrar al canal de una sala. Antes se aceptaba cualquier texto, sin limite y sin
+   * comprobar nada: cualquier sesion podia abrir canales arbitrarios. Ahora:
+   *
+   * - el roomId debe tener forma de UUID;
+   * - el token debe seguir vigente y ser de quien abrio la conexion. El cliente manda el
+   *   actual en cada `room.join`, porque el del handshake vence a los quince minutos y la
+   *   conexion puede durar mas;
+   * - auction debe confirmar que la sala existe y que esa persona puede verla (ver
+   *   `RoomAccessVerifier`; no exige estar inscrito, para no romper el modo seguimiento);
+   * - una conexion escucha a lo sumo `MAX_ROOMS_PER_CONNECTION` salas.
+   *
+   * Si algo falla responde `{ ok: false, reason }` y el cliente sigue con su sondeo lento.
+   */
   @SubscribeMessage('room.join')
-  async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId?: unknown }) {
-    if (typeof body?.roomId !== 'string' || !body.roomId) return { ok: false };
-    await client.join(roomChannel(body.roomId));
-    return { ok: true, roomId: body.roomId };
+  async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId?: unknown; token?: unknown }) {
+    const roomId = body?.roomId;
+    if (typeof roomId !== 'string' || !ROOM_ID.test(roomId)) return { ok: false, reason: 'invalid-room' };
+    if (client.rooms.has(roomChannel(roomId))) return { ok: true, roomId };
+
+    const token = typeof body.token === 'string' && body.token ? body.token : client.handshake.auth?.token;
+    const userId = await this.tokens.verify(token);
+    if (!userId || userId !== client.data.userId) return { ok: false, reason: 'unauthorized' };
+
+    const watching = [...client.rooms].filter((channel) => channel.startsWith(ROOM_PREFIX)).length;
+    if (watching >= MAX_ROOMS_PER_CONNECTION) return { ok: false, reason: 'too-many-rooms' };
+
+    const access = await this.rooms.check(roomId, token as string);
+    if (access !== 'granted') return { ok: false, reason: access };
+
+    await client.join(roomChannel(roomId));
+    return { ok: true, roomId };
   }
 
   @SubscribeMessage('room.leave')

@@ -1,5 +1,78 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RealtimeGateway } from './realtime.gateway.js';
+import { MAX_ROOMS_PER_CONNECTION, RealtimeGateway } from './realtime.gateway.js';
+import type { RoomAccess } from './room-access.js';
+
+const ROOM = '0b8f3c1e-5d2a-4c7b-9e1f-2a3b4c5d6e7f';
+
+/** Una conexion ya autenticada como alice, y el gateway con auth y auction de mentira. */
+function joining(access: RoomAccess = 'granted', tokenOwner: string | null = 'alice') {
+  const verify = vi.fn().mockResolvedValue(tokenOwner);
+  const check = vi.fn().mockResolvedValue(access);
+  const gateway = new RealtimeGateway({ verify } as never, { check } as never);
+  const client = {
+    rooms: new Set<string>(['socket-id', 'user:alice']),
+    data: { userId: 'alice' },
+    handshake: { auth: { token: 'handshake-jwt' } },
+    join: vi.fn(async (channel: string) => { client.rooms.add(channel); }),
+  };
+  const join = (body: unknown) => gateway.joinRoom(client as never, body as never);
+  return { verify, check, client, join };
+}
+
+describe('RealtimeGateway room.join', () => {
+  it('entra al canal de una sala que auction confirma, con el token vigente del cliente', async () => {
+    const { verify, check, client, join } = joining();
+    await expect(join({ roomId: ROOM, token: 'fresh-jwt' })).resolves.toEqual({ ok: true, roomId: ROOM });
+    expect(verify).toHaveBeenCalledWith('fresh-jwt');
+    expect(check).toHaveBeenCalledWith(ROOM, 'fresh-jwt');
+    expect(client.join).toHaveBeenCalledWith(`room:${ROOM}`);
+  });
+
+  it('sin token en el mensaje usa el del handshake', async () => {
+    const { check, join } = joining();
+    await join({ roomId: ROOM });
+    expect(check).toHaveBeenCalledWith(ROOM, 'handshake-jwt');
+  });
+
+  it('rechaza un roomId que no es una sala, sin preguntarle a nadie', async () => {
+    const { verify, check, client, join } = joining();
+    for (const roomId of ['', 'sala', `${ROOM}x`, 42, undefined]) {
+      await expect(join({ roomId })).resolves.toEqual({ ok: false, reason: 'invalid-room' });
+    }
+    expect(verify).not.toHaveBeenCalled();
+    expect(check).not.toHaveBeenCalled();
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un token vencido o de otra persona', async () => {
+    for (const owner of [null, 'mallory']) {
+      const { check, client, join } = joining('granted', owner);
+      await expect(join({ roomId: ROOM, token: 'jwt' })).resolves.toEqual({ ok: false, reason: 'unauthorized' });
+      expect(check).not.toHaveBeenCalled();
+      expect(client.join).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each(['not-found', 'denied', 'unavailable'] as const)('no entra si auction responde %s', async (access) => {
+    const { client, join } = joining(access);
+    await expect(join({ roomId: ROOM, token: 'jwt' })).resolves.toEqual({ ok: false, reason: access });
+    expect(client.join).not.toHaveBeenCalled();
+  });
+
+  it(`una conexion escucha a lo sumo ${MAX_ROOMS_PER_CONNECTION} salas`, async () => {
+    const { check, client, join } = joining();
+    for (let index = 0; index < MAX_ROOMS_PER_CONNECTION; index += 1) client.rooms.add(`room:sala-${index}`);
+    await expect(join({ roomId: ROOM, token: 'jwt' })).resolves.toEqual({ ok: false, reason: 'too-many-rooms' });
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it('volver a entrar a una sala que ya escucha no consulta de nuevo', async () => {
+    const { check, client, join } = joining();
+    client.rooms.add(`room:${ROOM}`);
+    await expect(join({ roomId: ROOM, token: 'jwt' })).resolves.toEqual({ ok: true, roomId: ROOM });
+    expect(check).not.toHaveBeenCalled();
+  });
+});
 
 function setup(verifiedUser: string | null = 'alice') {
   const emitted: Array<{ channel: string; name: string; payload: Record<string, unknown> }> = [];
@@ -8,7 +81,7 @@ function setup(verifiedUser: string | null = 'alice') {
     to: (channel: string) => ({ emit: (name: string, payload: Record<string, unknown>) => emitted.push({ channel, name, payload }) }),
     use: (fn: typeof middleware) => { middleware = fn; },
   };
-  const gateway = new RealtimeGateway({ verify: vi.fn().mockResolvedValue(verifiedUser) } as never);
+  const gateway = new RealtimeGateway({ verify: vi.fn().mockResolvedValue(verifiedUser) } as never, { check: vi.fn() } as never);
   (gateway as unknown as { server: typeof server }).server = server;
   gateway.afterInit(server as never);
   return { gateway, emitted, connect: (socket: unknown, next: (error?: Error) => void) => middleware(socket, next) };

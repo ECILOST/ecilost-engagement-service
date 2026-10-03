@@ -4,7 +4,7 @@ Colas propias de `ecilost.events`, idempotencia por evento y DLQ antes de implem
 
 ## Auction → canal en vivo
 
-`AuctionEventConsumer` lee la cola `engagement.events.v1` (DLQ `engagement.events.dlq`), empuja cada evento al namespace Socket.IO `/realtime` antes de persistirlo y guarda la bandeja de notificaciones. El cliente se conecta con `io('/realtime', { auth: { token } })` y emite `room.join` con el `roomId`. Todos los mensajes traen `eventId` (para descartar repetidos) y `serverTime` (para corregir el reloj local; el cliente nunca decide que algo terminó).
+`AuctionEventConsumer` lee la cola `engagement.events.v1` (DLQ `engagement.events.dlq`), empuja cada evento al namespace Socket.IO `/realtime` antes de persistirlo y guarda la bandeja de notificaciones. El cliente se conecta con `io('/realtime', { auth: { token } })` y emite `room.join` con `{ roomId, token }`: el roomId debe ser un UUID, el token el vigente de la misma persona, y auction (`AUCTION_SERVICE_URL`) debe confirmar que la sala existe y que esa persona puede verla; cada conexion escucha a lo sumo cinco salas. Todos los mensajes traen `eventId` (para descartar repetidos) y `serverTime` (para corregir el reloj local; el cliente nunca decide que algo terminó).
 
 | Evento de Auction | Socket (canal) | Payload |
 |---|---|---|
