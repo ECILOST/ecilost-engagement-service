@@ -24,6 +24,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isOptionalRoomStatus(value: unknown): boolean {
+  return value === undefined || value === 'ACTIVE' || value === 'CLOSED';
+}
+
 function parseEvent(value: unknown): AuctionEvent | null {
   if (!isRecord(value)) return null;
   if (typeof value.eventId !== 'string' || typeof value.eventType !== 'string' || typeof value.occurredAt !== 'string') {
@@ -44,7 +48,10 @@ function parseEvent(value: unknown): AuctionEvent | null {
       typeof value.currentBidderId === 'string' &&
       typeof value.currentPrice === 'string' &&
       typeof value.endsAt === 'string' &&
-      typeof value.sequence === 'string';
+      typeof value.sequence === 'string' &&
+      (value.previousEndsAt === undefined || typeof value.previousEndsAt === 'string') &&
+      (value.extended === undefined || typeof value.extended === 'boolean') &&
+      (value.automatic === undefined || typeof value.automatic === 'boolean');
     return valid ? (value as unknown as AuctionBidAcceptedEvent) : null;
   }
 
@@ -53,7 +60,8 @@ function parseEvent(value: unknown): AuctionEvent | null {
       typeof value.currentPrice === 'string' &&
       typeof value.startedAt === 'string' &&
       typeof value.endsAt === 'string' &&
-      Array.isArray(value.entries);
+      Array.isArray(value.entries) &&
+      isOptionalRoomStatus(value.roomStatus);
     return valid ? (value as unknown as AuctionRoundActivatedEvent) : null;
   }
 
@@ -61,7 +69,8 @@ function parseEvent(value: unknown): AuctionEvent | null {
     const valid =
       typeof value.currentPrice === 'string' &&
       (typeof value.currentBidderId === 'string' || value.currentBidderId === null) &&
-      typeof value.closedAt === 'string';
+      typeof value.closedAt === 'string' &&
+      isOptionalRoomStatus(value.roomStatus);
     return valid ? (value as unknown as AuctionRoundClosedEvent) : null;
   }
 
