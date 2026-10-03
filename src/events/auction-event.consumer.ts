@@ -18,6 +18,7 @@ const QUEUE = 'engagement.events.v1';
 const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
 /** Cuantos `eventId` recientes se recuerdan para no reemitir una reentrega. */
 const RECENT_EVENTS_WINDOW = 5_000;
+const RETRY_DELAY_MS = 5_000;
 const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.activated.v1', 'auction.round.closed.v1'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -83,6 +84,9 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
   private connection?: Awaited<ReturnType<typeof amqp.connect>>;
   private channel?: Channel;
   private readonly recent = new Set<string>();
+  private retry?: NodeJS.Timeout;
+  private connecting = false;
+  private stopped = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -90,35 +94,68 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly realtime: RealtimeGateway,
   ) {}
 
+  /**
+   * La conexion con RabbitMQ se reintenta, al arrancar y cada vez que se cae. Antes se
+   * conectaba una sola vez: si RabbitMQ no respondia al arrancar, engagement no levantaba, y
+   * si la conexion se caia despues, la sala dejaba de recibir precios y avisos hasta
+   * reiniciar el contenedor. Los eventos pendientes esperan en la cola durable.
+   */
   async onModuleInit() {
     const rabbitmqUrl = this.config.get<string>('RABBITMQ_URL');
     if (!rabbitmqUrl) throw new Error('RABBITMQ_URL must be configured for Engagement.');
-
-    this.connection = await amqp.connect(rabbitmqUrl);
-    this.channel = await this.connection.createChannel();
-    await this.channel.assertExchange(EXCHANGE, 'topic', { durable: true });
-    await this.channel.assertExchange(DEAD_LETTER_EXCHANGE, 'direct', { durable: true });
-    await this.channel.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
-    await this.channel.bindQueue(DEAD_LETTER_QUEUE, DEAD_LETTER_EXCHANGE, 'engagement.dead');
-
-    await this.channel.assertQueue(QUEUE, {
-      durable: true,
-      deadLetterExchange: DEAD_LETTER_EXCHANGE,
-      deadLetterRoutingKey: 'engagement.dead',
-    });
-    for (const routingKey of ROUTING_KEYS) {
-      await this.channel.bindQueue(QUEUE, EXCHANGE, routingKey);
-    }
-    await this.channel.prefetch(10);
-    await this.channel.consume(QUEUE, (message) => {
-      if (message) void this.captureEvent(message);
-    });
-    this.logger.log('Consuming Auction events into the durable inbox, notifications and realtime channel.');
+    void this.connect(rabbitmqUrl);
   }
 
   async onModuleDestroy() {
+    this.stopped = true;
+    if (this.retry) clearTimeout(this.retry);
     await this.channel?.close().catch(() => undefined);
     await this.connection?.close().catch(() => undefined);
+  }
+
+  private async connect(rabbitmqUrl: string): Promise<void> {
+    if (this.stopped || this.connecting || this.channel) return;
+    this.connecting = true;
+    try {
+      const connection = await amqp.connect(rabbitmqUrl);
+      this.connection = connection;
+      connection.on('error', (error: unknown) => this.logger.warn(`RabbitMQ connection error: ${String(error)}`));
+      connection.on('close', () => this.resetAndRetry(rabbitmqUrl));
+      const channel = await connection.createChannel();
+      await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
+      await channel.assertExchange(DEAD_LETTER_EXCHANGE, 'direct', { durable: true });
+      await channel.assertQueue(DEAD_LETTER_QUEUE, { durable: true });
+      await channel.bindQueue(DEAD_LETTER_QUEUE, DEAD_LETTER_EXCHANGE, 'engagement.dead');
+
+      await channel.assertQueue(QUEUE, {
+        durable: true,
+        deadLetterExchange: DEAD_LETTER_EXCHANGE,
+        deadLetterRoutingKey: 'engagement.dead',
+      });
+      for (const routingKey of ROUTING_KEYS) {
+        await channel.bindQueue(QUEUE, EXCHANGE, routingKey);
+      }
+      await channel.prefetch(10);
+      await channel.consume(QUEUE, (message) => {
+        if (message) void this.captureEvent(message, channel);
+      });
+      this.channel = channel;
+      this.logger.log('Consuming Auction events into the durable inbox, notifications and realtime channel.');
+    } catch (error) {
+      this.logger.warn(`Could not connect to RabbitMQ; retrying in ${RETRY_DELAY_MS / 1000} s: ${String(error)}`);
+      await this.connection?.close().catch(() => undefined);
+      this.resetAndRetry(rabbitmqUrl);
+    } finally {
+      this.connecting = false;
+    }
+  }
+
+  private resetAndRetry(rabbitmqUrl: string) {
+    this.channel = undefined;
+    this.connection = undefined;
+    if (this.stopped) return;
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = setTimeout(() => void this.connect(rabbitmqUrl), RETRY_DELAY_MS);
   }
 
   /**
@@ -134,11 +171,12 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
    * repetidos se filtran para no emitirlos dos veces con una ventana en memoria; tras un
    * reinicio podria reemitirse alguno, y el cliente los descarta por `eventId` y `sequence`.
    */
-  private async captureEvent(message: Message) {
+  private async captureEvent(message: Message, channel: Channel | undefined = this.channel) {
+    // Se confirma por el canal que entrego el mensaje: tras una reconexion, el nuevo no lo conoce.
     const event = parseEvent(this.parseBody(message));
     if (!event || (message.properties.messageId && message.properties.messageId !== event.eventId)) {
       this.logger.warn('Rejected malformed or inconsistent Auction event; it was sent to the dead-letter queue.');
-      this.channel?.nack(message, false, false);
+      channel?.nack(message, false, false);
       return;
     }
 
@@ -146,10 +184,10 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
 
     try {
       await this.persist(event);
-      this.channel?.ack(message);
+      channel?.ack(message);
     } catch (error) {
       this.logger.error(`Could not persist Auction event ${event.eventId}; it was sent to the dead-letter queue: ${String(error)}`);
-      this.channel?.nack(message, false, false);
+      channel?.nack(message, false, false);
     }
   }
 
