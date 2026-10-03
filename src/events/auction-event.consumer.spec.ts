@@ -138,6 +138,21 @@ describe('AuctionEventConsumer', () => {
     expect(channel.ack).not.toHaveBeenCalled();
   });
 
+  it('acepta los campos nuevos de Auction (extension, puja automatica y estado de la sala)', async () => {
+    const { realtime, channel, deliver } = setup();
+    await deliver(bidAccepted({ extended: true, previousEndsAt: occurredAt, automatic: true }));
+    await deliver({ ...roundClosed, eventId: 'closed-2', roomStatus: 'CLOSED', result: 'DESERTED', winnerId: null });
+    expect(realtime.publish).toHaveBeenCalledTimes(2);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
+  it('manda a la DLQ un evento con un estado de sala desconocido', async () => {
+    const { realtime, channel, deliver } = setup();
+    await deliver({ ...roundClosed, roomStatus: 'EXTENDING' });
+    expect(realtime.publish).not.toHaveBeenCalled();
+    expect(channel.nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
   it('manda a la DLQ un evento malformado sin tocar la base ni los clientes', async () => {
     const { prisma, realtime, channel, deliver } = setup();
     await deliver({ ...roundClosed, closedAt: undefined });

@@ -7,7 +7,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
-import type { AuctionEvent } from '../events/event-contracts.js';
+import type { AuctionEvent, RoomStatus } from '../events/event-contracts.js';
 import { TokenVerifier } from './token-verifier.js';
 
 const roomChannel = (roomId: string) => `room:${roomId}`;
@@ -16,8 +16,11 @@ const userChannel = (userId: string) => `user:${userId}`;
 /**
  * Canal de tiempo real de la sala. El cliente se conecta con
  * `io('/realtime', { auth: { token } })`, emite `room.join` con el roomId y recibe:
- * - `round.price`: nuevo precio y `endsAt` tras una puja aceptada (a toda la sala).
+ * - `round.price`: nuevo precio y `endsAt` tras una puja aceptada (a toda la sala). Trae
+ *   `automatic` si la hizo el motor de puja automatica (HU-22).
+ * - `round.extended`: la puja cayo en el ultimo minuto y movio el cierre (HU-23).
  * - `round.activated` / `round.closed`: transicion de ronda (a toda la sala).
+ * - `room.status`: la sala empezo (`ACTIVE`) o termino (`CLOSED`) (HU-18).
  * - `bid.outbid`: aviso personal al participante superado.
  * - `round.won`: aviso personal al ganador cuando la ronda se adjudica.
  * Cada mensaje trae `eventId` (para descartar repetidos) y `serverTime`, con el que
@@ -69,8 +72,22 @@ export class RealtimeGateway implements OnGatewayInit {
         currentBidderId: event.currentBidderId,
         endsAt: event.endsAt,
         sequence: event.sequence,
+        automatic: event.automatic ?? false,
+        extended: event.extended ?? false,
         serverTime,
       });
+      if (event.extended) {
+        room.emit('round.extended', {
+          eventId: event.eventId,
+          roomId: event.roomId,
+          roundId: event.roundId,
+          position: event.position,
+          previousEndsAt: event.previousEndsAt ?? null,
+          endsAt: event.endsAt,
+          sequence: event.sequence,
+          serverTime,
+        });
+      }
       if (event.previousBidderId && event.previousBidderId !== event.bidderId) {
         this.server.to(userChannel(event.previousBidderId)).emit('bid.outbid', {
           eventId: event.eventId,
@@ -95,8 +112,11 @@ export class RealtimeGateway implements OnGatewayInit {
         startedAt: event.startedAt,
         endsAt: event.endsAt,
         entries: event.entries,
+        roomStatus: event.roomStatus ?? 'ACTIVE',
         serverTime,
       });
+      // La primera ronda abre la sala: es el inicio automatico de HU-18.
+      if (event.position === 1) this.emitRoomStatus(event.eventId, event.roomId, 'ACTIVE', event.startedAt, serverTime);
       return;
     }
 
@@ -111,8 +131,11 @@ export class RealtimeGateway implements OnGatewayInit {
       currentPrice: event.currentPrice,
       result,
       closedAt: event.closedAt,
+      // Los eventos anteriores a HU-18 no dicen como queda la sala: no se adivina.
+      roomStatus: event.roomStatus ?? null,
       serverTime,
     });
+    if (event.roomStatus === 'CLOSED') this.emitRoomStatus(event.eventId, event.roomId, 'CLOSED', event.closedAt, serverTime);
     if (result === 'AWARDED' && winnerId) {
       this.server.to(userChannel(winnerId)).emit('round.won', {
         eventId: event.eventId,
@@ -123,5 +146,9 @@ export class RealtimeGateway implements OnGatewayInit {
         serverTime,
       });
     }
+  }
+
+  private emitRoomStatus(eventId: string, roomId: string, status: RoomStatus, at: string, serverTime: string) {
+    this.server.to(roomChannel(roomId)).emit('room.status', { eventId, roomId, status, at, serverTime });
   }
 }
