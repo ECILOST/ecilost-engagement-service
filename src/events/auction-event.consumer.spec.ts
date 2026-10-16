@@ -153,6 +153,23 @@ describe('AuctionEventConsumer', () => {
     expect(channel.nack).toHaveBeenCalledWith(expect.anything(), false, false);
   });
 
+  it('retransmite la ruleta y el conteo de sobres sin crear notificaciones (subastas dinamicas)', async () => {
+    const { realtime, channel, notified, deliver } = setup();
+    const base = { occurredAt, roomId: 'room', roundId: 'round', position: 1 };
+    await deliver({ ...base, eventId: 'mode-1', eventType: 'auction.round.mode-selected.v1', segment: 'WILDCARD', mode: null, wildcardSpins: 1 });
+    await deliver({ ...base, eventId: 'sealed-1', eventType: 'auction.round.sealed-bid.placed.v1', sealedCount: 3 });
+    expect(realtime.publish).toHaveBeenCalledTimes(2);
+    expect(channel.ack).toHaveBeenCalledTimes(2);
+    expect(notified()).toEqual([]);
+  });
+
+  it('manda a la DLQ una ruleta con un modo desconocido', async () => {
+    const { realtime, channel, deliver } = setup();
+    await deliver({ eventId: 'mode-x', eventType: 'auction.round.mode-selected.v1', occurredAt, roomId: 'room', roundId: 'round', position: 1, segment: 'RULETA', mode: 'RUSA', wildcardSpins: 0 });
+    expect(realtime.publish).not.toHaveBeenCalled();
+    expect(channel.nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
   it('manda a la DLQ un evento malformado sin tocar la base ni los clientes', async () => {
     const { prisma, realtime, channel, deliver } = setup();
     await deliver({ ...roundClosed, closedAt: undefined });

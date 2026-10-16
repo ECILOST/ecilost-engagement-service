@@ -10,6 +10,8 @@ import type {
   AuctionBidAcceptedEvent,
   AuctionRoundActivatedEvent,
   AuctionRoundClosedEvent,
+  AuctionRoundModeSelectedEvent,
+  AuctionSealedBidPlacedEvent,
 } from './event-contracts.js';
 
 const EXCHANGE = 'ecilost.events';
@@ -19,7 +21,17 @@ const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
 /** Cuantos `eventId` recientes se recuerdan para no reemitir una reentrega. */
 const RECENT_EVENTS_WINDOW = 5_000;
 const RETRY_DELAY_MS = 5_000;
-const ROUTING_KEYS = ['auction.bid.accepted.v1', 'auction.round.activated.v1', 'auction.round.closed.v1'] as const;
+const ROUTING_KEYS = [
+  'auction.bid.accepted.v1',
+  'auction.round.activated.v1',
+  'auction.round.closed.v1',
+  // Subastas dinamicas: la ruleta del dueño y los sobres sellados.
+  'auction.round.mode-selected.v1',
+  'auction.round.sealed-bid.placed.v1',
+] as const;
+
+const ROUND_MODES = ['CLASSIC', 'DUTCH', 'SEALED', 'MYSTERY'];
+const SPIN_SEGMENTS = ['DUTCH', 'SEALED', 'MYSTERY', 'WILDCARD'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -64,6 +76,18 @@ function parseEvent(value: unknown): AuctionEvent | null {
       Array.isArray(value.entries) &&
       isOptionalRoomStatus(value.roomStatus);
     return valid ? (value as unknown as AuctionRoundActivatedEvent) : null;
+  }
+
+  if (value.eventType === 'auction.round.mode-selected.v1') {
+    const valid =
+      (value.segment === null || SPIN_SEGMENTS.includes(value.segment as string)) &&
+      (value.mode === null || ROUND_MODES.includes(value.mode as string)) &&
+      typeof value.wildcardSpins === 'number';
+    return valid ? (value as unknown as AuctionRoundModeSelectedEvent) : null;
+  }
+
+  if (value.eventType === 'auction.round.sealed-bid.placed.v1') {
+    return typeof value.sealedCount === 'number' ? (value as unknown as AuctionSealedBidPlacedEvent) : null;
   }
 
   if (value.eventType === 'auction.round.closed.v1') {

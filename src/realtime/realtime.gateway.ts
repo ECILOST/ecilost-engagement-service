@@ -141,6 +141,34 @@ export class RealtimeGateway implements OnGatewayInit {
       return;
     }
 
+    // Subastas dinamicas: la sala anima la ruleta con el resultado que decidio el servidor.
+    if (event.eventType === 'auction.round.mode-selected.v1') {
+      room.emit('round.mode', {
+        eventId: event.eventId,
+        roomId: event.roomId,
+        roundId: event.roundId,
+        position: event.position,
+        segment: event.segment,
+        mode: event.mode,
+        wildcardSpins: event.wildcardSpins,
+        serverTime,
+      });
+      return;
+    }
+
+    // Sobre cerrado: cuantos sobres hay. Ni montos ni quien sello.
+    if (event.eventType === 'auction.round.sealed-bid.placed.v1') {
+      room.emit('round.sealed', {
+        eventId: event.eventId,
+        roomId: event.roomId,
+        roundId: event.roundId,
+        position: event.position,
+        sealedCount: event.sealedCount,
+        serverTime,
+      });
+      return;
+    }
+
     if (event.eventType === 'auction.round.activated.v1') {
       room.emit('round.activated', {
         eventId: event.eventId,
@@ -152,6 +180,8 @@ export class RealtimeGateway implements OnGatewayInit {
         endsAt: event.endsAt,
         entries: event.entries,
         roomStatus: event.roomStatus ?? 'ACTIVE',
+        // La sala anuncia la modalidad a pantalla completa antes de mostrar la ronda.
+        mode: event.mode ?? 'CLASSIC',
         serverTime,
       });
       // La primera ronda abre la sala: es el inicio automatico de HU-18.
