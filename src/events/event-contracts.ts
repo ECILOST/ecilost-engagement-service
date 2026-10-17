@@ -37,6 +37,8 @@ export interface AuctionRoundActivatedEvent extends EventMetadata<'auction.round
   entries: Array<{ kind: string; catalogId: string }>;
   /** Desde HU-18. Los eventos anteriores no lo traen. */
   roomStatus?: RoomStatus;
+  /** Subastas dinamicas: como se juega la ronda. Los eventos anteriores no lo traen (CLASSIC). */
+  mode?: RoundMode;
 }
 
 export interface AuctionRoundClosedEvent extends EventMetadata<'auction.round.closed.v1'> {
@@ -54,4 +56,30 @@ export interface AuctionRoundClosedEvent extends EventMetadata<'auction.round.cl
   roomStatus?: RoomStatus;
 }
 
-export type AuctionEvent = AuctionBidAcceptedEvent | AuctionRoundActivatedEvent | AuctionRoundClosedEvent;
+/** Como se juega una ronda (subastas dinamicas). */
+export type RoundMode = 'CLASSIC' | 'DUTCH' | 'SEALED' | 'MYSTERY';
+
+/** La ruleta del dueño de la sala giro. Con `mode` nulo salio comodin y se gira otra vez. */
+export interface AuctionRoundModeSelectedEvent extends EventMetadata<'auction.round.mode-selected.v1'> {
+  roomId: string;
+  roundId: string;
+  position: number;
+  segment: 'DUTCH' | 'SEALED' | 'MYSTERY' | 'WILDCARD' | null;
+  mode: RoundMode | null;
+  wildcardSpins: number;
+}
+
+/** Alguien sello su puja en un sobre cerrado. Solo el conteo: nunca el monto ni quien. */
+export interface AuctionSealedBidPlacedEvent extends EventMetadata<'auction.round.sealed-bid.placed.v1'> {
+  roomId: string;
+  roundId: string;
+  position: number;
+  sealedCount: number;
+}
+
+export type AuctionEvent =
+  | AuctionBidAcceptedEvent
+  | AuctionRoundActivatedEvent
+  | AuctionRoundClosedEvent
+  | AuctionRoundModeSelectedEvent
+  | AuctionSealedBidPlacedEvent;

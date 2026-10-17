@@ -119,6 +119,36 @@ describe('RealtimeGateway', () => {
     expect(emitted[0].payload).toMatchObject({ currentPrice: '20.00', endsAt: bid.endsAt, serverTime: expect.any(String) });
   });
 
+  it('anima la ruleta de toda la sala con el resultado que decidio el servidor (subastas dinamicas)', () => {
+    const { gateway, emitted } = setup();
+    gateway.publish({
+      eventId: 'm', eventType: 'auction.round.mode-selected.v1', occurredAt: bid.occurredAt, roomId: 'room', roundId: 'round-2',
+      position: 2, segment: 'MYSTERY', mode: 'MYSTERY', wildcardSpins: 1,
+    });
+    expect(emitted).toEqual([{ channel: 'room:room', name: 'round.mode', payload: expect.objectContaining({ roundId: 'round-2', segment: 'MYSTERY', mode: 'MYSTERY', wildcardSpins: 1 }) }]);
+  });
+
+  it('del sobre cerrado solo publica cuantos sobres hay', () => {
+    const { gateway, emitted } = setup();
+    gateway.publish({
+      eventId: 's', eventType: 'auction.round.sealed-bid.placed.v1', occurredAt: bid.occurredAt, roomId: 'room', roundId: 'round',
+      position: 1, sealedCount: 4,
+    });
+    expect(emitted.map(({ channel, name }) => `${channel} ${name}`)).toEqual(['room:room round.sealed']);
+    expect(Object.keys(emitted[0].payload).sort()).toEqual(['eventId', 'position', 'roomId', 'roundId', 'sealedCount', 'serverTime']);
+  });
+
+  it('la activacion lleva la modalidad de la ronda y los eventos viejos se tratan como clasica', () => {
+    const { gateway, emitted } = setup();
+    const activated = {
+      eventId: 'a', eventType: 'auction.round.activated.v1' as const, occurredAt: bid.occurredAt, roomId: 'room', roundId: 'round-2',
+      position: 2, currentPrice: '0', startedAt: bid.occurredAt, endsAt: bid.endsAt, entries: [],
+    };
+    gateway.publish({ ...activated, mode: 'DUTCH' });
+    gateway.publish({ ...activated, eventId: 'b' });
+    expect(emitted.map(({ payload }) => payload.mode)).toEqual(['DUTCH', 'CLASSIC']);
+  });
+
   it('anuncia la transicion y el cierre de ronda a toda la sala', () => {
     const { gateway, emitted } = setup();
     gateway.publish({
