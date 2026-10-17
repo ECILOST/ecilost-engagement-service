@@ -20,6 +20,34 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build
+    # Las de integracion recorren RabbitMQ -> consumidor -> PostgreSQL -> Socket.IO con la
+    # infraestructura real: reentregas, DLQ, orden y acceso al canal de la sala.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: engagement
+          POSTGRES_PASSWORD: engagement
+          POSTGRES_DB: ecilost_engagement_it
+        ports:
+          - 5437:5432
+        options: >-
+          --health-cmd "pg_isready -U engagement -d ecilost_engagement_it"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      rabbitmq:
+        image: rabbitmq:4-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: ecilost
+          RABBITMQ_DEFAULT_PASS: ecilost
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +59,11 @@ jobs:
         run: npm run typecheck
       - name: Tests
         run: npm test --if-present
+      - name: Integration tests (PostgreSQL + RabbitMQ + Socket.IO)
+        run: npm run test:integration
+        env:
+          TEST_DATABASE_URL: postgresql://engagement:engagement@localhost:5437/ecilost_engagement_it?schema=public
+          TEST_RABBITMQ_URL: amqp://ecilost:ecilost@localhost:5672
       - name: Build
         run: npm run build
 
