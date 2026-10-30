@@ -45,6 +45,11 @@ export class RealtimeGateway implements OnGatewayInit {
 
   constructor(private readonly tokens: TokenVerifier, private readonly rooms: RoomAccessVerifier) {}
 
+  /** Conexiones abiertas en `/realtime`; lo lee la metrica `realtime_connected_sockets`. */
+  get connectedSockets(): number {
+    return this.server?.sockets.size ?? 0;
+  }
+
   afterInit(server: Namespace) {
     // El middleware autentica antes de aceptar la conexion.
     server.use(async (socket, next) => {
