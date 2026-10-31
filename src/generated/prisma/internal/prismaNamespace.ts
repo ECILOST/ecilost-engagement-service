@@ -683,6 +683,7 @@ export type TransactionIsolationLevel = (typeof TransactionIsolationLevel)[keyof
 export const ConsumedEventScalarFieldEnum = {
   eventId: 'eventId',
   eventType: 'eventType',
+  roomId: 'roomId',
   payload: 'payload',
   occurredAt: 'occurredAt',
   receivedAt: 'receivedAt',

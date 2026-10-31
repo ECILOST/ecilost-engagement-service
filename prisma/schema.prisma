@@ -18,6 +18,8 @@ enum NotificationKind {
 model ConsumedEvent {
   eventId     String   @id
   eventType   String
+  // Sala del evento, fuera del JSON para leer la actividad de una sala sin recorrer la tabla.
+  roomId      String?
   payload     Json
   occurredAt  DateTime
   receivedAt  DateTime @default(now())
@@ -26,6 +28,7 @@ model ConsumedEvent {
   lastError   String?
 
   @@index([processedAt, receivedAt])
+  @@index([roomId, occurredAt])
   @@map("consumed_events")
 }
 
