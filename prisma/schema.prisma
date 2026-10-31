@@ -46,3 +46,16 @@ model Notification {
   @@index([roomId, createdAt])
   @@map("notifications")
 }
+
+// Chat de la sala en curso: solo escriben los admitidos antes del inicio. El autor se guarda
+// para limitar el envio y calcular su alias; a la sala nunca se le publica su userId.
+model ChatMessage {
+  id        String   @id
+  roomId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
