@@ -44,4 +44,37 @@ describe('RoomAccessVerifier', () => {
     await expect(verifier('').check(ROOM, 'jwt')).resolves.toBe('granted');
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  describe('lookup', () => {
+    it('devuelve el estado de la sala y si quien pregunta participa o es el dueño', async () => {
+      fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: ROOM, status: 'ACTIVE', isParticipant: true, isOwner: false }) });
+      await expect(verifier().lookup(ROOM, 'jwt')).resolves.toEqual({
+        access: 'granted',
+        room: { status: 'ACTIVE', isParticipant: true, isOwner: false },
+      });
+    });
+
+    it('sin las banderas no da por hecho que participa', async () => {
+      fetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ status: 'ACTIVE' }) });
+      await expect(verifier().lookup(ROOM, 'jwt')).resolves.toEqual({
+        access: 'granted',
+        room: { status: 'ACTIVE', isParticipant: false, isOwner: false },
+      });
+    });
+
+    it('una respuesta ilegible no concede', async () => {
+      fetch.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('bad json'); } });
+      await expect(verifier().lookup(ROOM, 'jwt')).resolves.toEqual({ access: 'unavailable' });
+    });
+
+    it('propaga lo que responde auction cuando no concede', async () => {
+      fetch.mockResolvedValue({ ok: false, status: 403 });
+      await expect(verifier().lookup(ROOM, 'jwt')).resolves.toEqual({ access: 'denied' });
+    });
+
+    it('sin AUCTION_SERVICE_URL no concede: no hay forma de saber quien participa', async () => {
+      await expect(verifier('').lookup(ROOM, 'jwt')).resolves.toEqual({ access: 'unavailable' });
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
 });

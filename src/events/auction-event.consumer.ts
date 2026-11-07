@@ -229,6 +229,7 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       data: [{
         eventId: event.eventId,
         eventType: event.eventType,
+        roomId: event.roomId,
         occurredAt: new Date(event.occurredAt),
         payload: event as unknown as Prisma.InputJsonObject,
       }],

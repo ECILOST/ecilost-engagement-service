@@ -27,3 +27,8 @@ export type ConsumedEvent = Prisma.ConsumedEventModel
  * 
  */
 export type Notification = Prisma.NotificationModel
+/**
+ * Model ChatMessage
+ * 
+ */
+export type ChatMessage = Prisma.ChatMessageModel

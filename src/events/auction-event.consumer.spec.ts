@@ -59,6 +59,14 @@ describe('AuctionEventConsumer', () => {
     expect(channel.ack).toHaveBeenCalledOnce();
   });
 
+  it('guarda el evento con su sala, para leer la actividad de la sala despues', async () => {
+    const { prisma, deliver } = setup();
+    await deliver(bidAccepted());
+    expect(prisma.consumedEvent.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: [expect.objectContaining({ eventId: 'bid-2', roomId: 'room' })],
+    }));
+  });
+
   it('no notifica superacion en la primera puja ni cuando el lider mejora su propia puja', async () => {
     for (const previousBidderId of [null, 'bob']) {
       const { prisma, realtime, deliver } = setup();

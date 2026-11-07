@@ -6,6 +6,15 @@ const AUCTION_TIMEOUT_MS = 3_000;
 
 export type RoomAccess = 'granted' | 'not-found' | 'denied' | 'unavailable';
 
+/** Lo que el chat necesita saber de la sala, tal como lo publica `GET /rooms/:roomId`. */
+export interface RoomMembership {
+  status: string;
+  isParticipant: boolean;
+  isOwner: boolean;
+}
+
+export type RoomLookup = { access: 'granted'; room: RoomMembership } | { access: Exclude<RoomAccess, 'granted'> };
+
 /**
  * Decide si alguien puede escuchar el canal en vivo de una sala.
  *
@@ -33,12 +42,40 @@ export class RoomAccessVerifier {
 
   async check(roomId: string, token: string): Promise<RoomAccess> {
     if (!this.auctionUrl) return 'granted';
+    const response = await this.fetchRoom(roomId, token);
+    return typeof response === 'string' ? response : 'granted';
+  }
+
+  /**
+   * Como `check`, pero ademas devuelve si quien pregunta participa o es el dueño, y en que
+   * estado esta la sala. El chat lo necesita: solo escriben los admitidos antes del inicio
+   * y solo mientras la sala esta en curso. Sin auction configurada no se concede nada,
+   * porque sin esa respuesta no hay forma de saber quien participa.
+   */
+  async lookup(roomId: string, token: string): Promise<RoomLookup> {
+    if (!this.auctionUrl) return { access: 'unavailable' };
+    const response = await this.fetchRoom(roomId, token);
+    if (typeof response === 'string') return { access: response };
+    try {
+      const room = (await response.json()) as Partial<RoomMembership>;
+      if (typeof room?.status !== 'string') return { access: 'unavailable' };
+      return {
+        access: 'granted',
+        room: { status: room.status, isParticipant: room.isParticipant === true, isOwner: room.isOwner === true },
+      };
+    } catch (error) {
+      this.logger.warn(`Auction devolvio una sala ilegible para ${roomId}: ${String(error)}`);
+      return { access: 'unavailable' };
+    }
+  }
+
+  private async fetchRoom(roomId: string, token: string): Promise<Response | Exclude<RoomAccess, 'granted'>> {
     try {
       const response = await fetch(`${this.auctionUrl}/rooms/${encodeURIComponent(roomId)}`, {
         headers: { authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(AUCTION_TIMEOUT_MS),
       });
-      if (response.ok) return 'granted';
+      if (response.ok) return response;
       if (response.status === 404 || response.status === 400) return 'not-found';
       if (response.status === 401 || response.status === 403) return 'denied';
       this.logger.warn(`Auction respondio ${response.status} al verificar la sala ${roomId}.`);
