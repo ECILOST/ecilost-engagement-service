@@ -54,6 +54,13 @@ export interface AuctionRoundClosedEvent extends EventMetadata<'auction.round.cl
   winningAmount?: string | null;
   /** Desde HU-18: `CLOSED` cuando era la ultima ronda. Los eventos anteriores no lo traen. */
   roomStatus?: RoomStatus;
+  /** Lo que se subasto y como se jugo (auction los manda en todos los eventos de ronda). */
+  entries?: Array<{ kind: string; catalogId: string }>;
+  mode?: RoundMode;
+  /** Gamificacion: quien pujo en la ronda. Los eventos anteriores no lo traen. */
+  participants?: Array<{ bidderId: string; bids: number; bestAmount: string }>;
+  /** Gamificacion: en sobre cerrado, la mejor oferta del segundo; si no, `null`. */
+  runnerUpAmount?: string | null;
 }
 
 /** Como se juega una ronda (subastas dinamicas). */

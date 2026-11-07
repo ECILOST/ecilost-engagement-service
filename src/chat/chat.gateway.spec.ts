@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoomLookup, RoomMembership } from '../realtime/room-access.js';
 import { chatAlias, MIN_SEND_INTERVAL_MS } from './chat-rules.js';
-import { CHAT_HISTORY_SIZE, ChatGateway, ROOM_STATUS_TTL_MS } from './chat.gateway.js';
+import { BADGES_TTL_MS, CHAT_HISTORY_SIZE, ChatGateway, ROOM_STATUS_TTL_MS } from './chat.gateway.js';
 
 const ROOM = '0b8f3c1e-5d2a-4c7b-9e1f-2a3b4c5d6e7f';
 const at = (second: number) => new Date(Date.UTC(2026, 9, 30, 15, 0, second));
@@ -11,14 +11,14 @@ const participant: RoomMembership = { status: 'ACTIVE', isParticipant: true, isO
 const granted = (room: Partial<RoomMembership> = {}): RoomLookup => ({ access: 'granted', room: { ...participant, ...room } });
 
 /** Una conexion ya autenticada como alice, y el gateway con auth, auction y base de mentira. */
-function setup({ lookup = granted(), tokenOwner = 'alice' as string | null } = {}) {
+function setup({ lookup = granted(), tokenOwner = 'alice' as string | null, gamification = undefined as unknown } = {}) {
   const verify = vi.fn().mockResolvedValue(tokenOwner);
   const lookupRoom = vi.fn().mockResolvedValue(lookup);
   const findMany = vi.fn().mockResolvedValue([]);
   const create = vi.fn(async ({ data }: { data: { id: string; roomId: string; body: string } }) => ({
     id: data.id, roomId: data.roomId, body: data.body, createdAt: at(30),
   }));
-  const gateway = new ChatGateway({ verify } as never, { lookup: lookupRoom } as never, { chatMessage: { findMany, create } } as never);
+  const gateway = new ChatGateway({ verify } as never, { lookup: lookupRoom } as never, { chatMessage: { findMany, create } } as never, gamification as never);
   let now = 0;
   gateway.now = () => now;
 
@@ -192,5 +192,51 @@ describe('ChatGateway chat.send', () => {
     await gateway.leaveChat(client as never, { roomId: ROOM });
     expect(client.leave).toHaveBeenCalledWith(`chat:${ROOM}`);
     await expect(send('hola')).resolves.toEqual({ ok: false, reason: 'not-joined' });
+  });
+});
+
+describe('ChatGateway medallas (gamificacion)', () => {
+  beforeEach(() => { vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined); });
+
+  it('el historial y los mensajes nuevos llevan las medallas del autor, nunca su id', async () => {
+    const badgesFor = vi.fn().mockResolvedValue({ bob: ['DUTCH_KING'], alice: ['FIRST_WIN', 'STREAK_3'] });
+    const { findMany, join, send, emitted } = setup({ gamification: { enabled: true, badgesFor } });
+    findMany.mockResolvedValue([{ id: 'm1', roomId: ROOM, authorId: 'bob', body: 'hola', createdAt: at(1) }]);
+
+    const joined = (await join()) as { messages: Array<Record<string, unknown>> };
+    expect(joined.messages[0]).toMatchObject({ alias: chatAlias(ROOM, 'bob'), badges: ['DUTCH_KING'] });
+
+    await send('suerte');
+    expect(emitted.at(-1)?.payload).toMatchObject({ body: 'suerte', badges: ['FIRST_WIN', 'STREAK_3'] });
+    expect(JSON.stringify(emitted.at(-1)?.payload)).not.toContain('alice');
+    expect(badgesFor).toHaveBeenCalledTimes(2);
+  });
+
+  it('las medallas de quien escribe seguido salen de la cache: el mensaje no espera a Mongo', async () => {
+    const badgesFor = vi.fn().mockResolvedValue({ alice: ['FIRST_WIN'] });
+    const { join, send, advance } = setup({ gamification: { enabled: true, badgesFor } });
+    await join();
+    await send('uno');
+    advance(MIN_SEND_INTERVAL_MS);
+    await send('dos');
+    expect(badgesFor).toHaveBeenCalledTimes(1);
+  });
+
+  it('las medallas se releen al vencer la cache', async () => {
+    const badgesFor = vi.fn().mockResolvedValue({ alice: ['FIRST_WIN'] });
+    const { join, send, advance } = setup({ gamification: { enabled: true, badgesFor } });
+    await join();
+    await send('uno');
+    advance(BADGES_TTL_MS + MIN_SEND_INTERVAL_MS);
+    await send('dos');
+    expect(badgesFor).toHaveBeenCalledTimes(2);
+  });
+
+  it('si Mongo falla, el chat sigue sin medallas', async () => {
+    const { join, send, emitted } = setup({ gamification: { enabled: true, badgesFor: vi.fn().mockRejectedValue(new Error('atlas caido')) } });
+    await join();
+    const sent = await send('hola');
+    expect(sent).toMatchObject({ ok: true });
+    expect(emitted.at(-1)?.payload).not.toHaveProperty('badges');
   });
 });
