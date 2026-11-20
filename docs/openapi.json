@@ -1,0 +1,857 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ECILOST Engagement Service",
+    "version": "0.1.0",
+    "description": "API HTTP de notificaciones, actividad y gamificación. El namespace Socket.IO /realtime se documenta en el README del servicio."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3005",
+      "description": "Desarrollo local"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Notificaciones"
+    },
+    {
+      "name": "Actividad"
+    },
+    {
+      "name": "Gamificación"
+    }
+  ],
+  "paths": {
+    "/notifications": {
+      "get": {
+        "tags": [
+          "Notificaciones"
+        ],
+        "operationId": "getNotifications",
+        "summary": "Consulta los avisos personales",
+        "responses": {
+          "200": {
+            "description": "Hasta 50 avisos del más reciente al más antiguo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/notifications/read": {
+      "post": {
+        "tags": [
+          "Notificaciones"
+        ],
+        "operationId": "markNotificationsRead",
+        "summary": "Marca los avisos propios como leídos",
+        "responses": {
+          "204": {
+            "description": "Operación idempotente completada, sin cuerpo."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/rooms/{roomId}/activity": {
+      "parameters": [
+        {
+          "name": "roomId",
+          "in": "path",
+          "required": true,
+          "description": "Identificador de la sala en Auction.",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Actividad"
+        ],
+        "operationId": "getRoomActivity",
+        "summary": "Consulta la actividad reciente de una sala",
+        "description": "Auction verifica que el usuario pueda ver la sala.",
+        "responses": {
+          "200": {
+            "description": "Hasta 50 eventos de la sala, sin identificar a los participantes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/BidActivity"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RoundStartedActivity"
+                          },
+                          {
+                            "$ref": "#/components/schemas/RoundClosedActivity"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/profiles/me": {
+      "get": {
+        "tags": [
+          "Gamificación"
+        ],
+        "operationId": "getMyProfile",
+        "summary": "Consulta el perfil de gamificación propio",
+        "responses": {
+          "200": {
+            "description": "Perfil, progreso de medallas y actividad propia.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/leaderboard": {
+      "get": {
+        "tags": [
+          "Gamificación"
+        ],
+        "operationId": "getLeaderboard",
+        "summary": "Consulta el ranking semanal",
+        "parameters": [
+          {
+            "name": "week",
+            "in": "query",
+            "description": "Semana actual o anterior.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "current",
+                "previous"
+              ],
+              "default": "current"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranking por alias y posición del usuario si está disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Leaderboard"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT de acceso vigente emitido por ECILOST Auth. Requiere exp."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Parámetros inválidos.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HttpError"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "JWT ausente o inválido.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HttpError"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "El usuario carece de acceso a la sala.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HttpError"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "La sala no existe.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HttpError"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "La consulta depende de Auction o del modelo de MongoDB y esa dependencia no está disponible.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HttpError"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HttpError": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "roomId",
+          "payload",
+          "createdAt",
+          "readAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "OUTBID",
+              "ROUND_CLOSED",
+              "ROUND_WON"
+            ]
+          },
+          "roomId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Contenido que depende del tipo de notificación."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "BidActivity": {
+        "type": "object",
+        "required": [
+          "id",
+          "roundId",
+          "position",
+          "at",
+          "kind",
+          "amount",
+          "automatic",
+          "extended",
+          "endsAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "roundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "BID"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "description": "Importe decimal en Ecicoin.",
+            "example": "1250.00"
+          },
+          "automatic": {
+            "type": "boolean"
+          },
+          "extended": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RoundStartedActivity": {
+        "type": "object",
+        "required": [
+          "id",
+          "roundId",
+          "position",
+          "at",
+          "kind",
+          "startingPrice",
+          "mode"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "roundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ROUND_STARTED"
+            ]
+          },
+          "startingPrice": {
+            "type": "string",
+            "description": "Importe decimal en Ecicoin.",
+            "example": "1250.00"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "DUTCH",
+              "SEALED",
+              "MYSTERY"
+            ]
+          }
+        }
+      },
+      "RoundClosedActivity": {
+        "type": "object",
+        "required": [
+          "id",
+          "roundId",
+          "position",
+          "at",
+          "kind",
+          "result",
+          "amount",
+          "roomClosed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "roundId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ROUND_CLOSED"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "AWARDED",
+              "DESERTED"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "description": "Importe decimal en Ecicoin.",
+            "example": "1250.00"
+          },
+          "roomClosed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "required": [
+          "alias",
+          "stats",
+          "weeklyRank",
+          "medals",
+          "modes",
+          "recent",
+          "updatedAt"
+        ],
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "stats": {
+            "type": "object",
+            "required": [
+              "bids",
+              "wins",
+              "spent",
+              "streakWeeks",
+              "favoriteMode",
+              "favoriteModeBids"
+            ],
+            "properties": {
+              "bids": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "wins": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "spent": {
+                "type": "string",
+                "description": "Importe decimal en Ecicoin.",
+                "example": "1250.00"
+              },
+              "streakWeeks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "favoriteMode": {
+                "type": "string",
+                "enum": [
+                  "CLASSIC",
+                  "DUTCH",
+                  "SEALED",
+                  "MYSTERY",
+                  null
+                ],
+                "nullable": true
+              },
+              "favoriteModeBids": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "weeklyRank": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          },
+          "medals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "unlockedAt",
+                "progress",
+                "goal"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "unlockedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true
+                },
+                "progress": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "goal": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "mode",
+                "played",
+                "won"
+              ],
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "CLASSIC",
+                    "DUTCH",
+                    "SEALED",
+                    "MYSTERY"
+                  ]
+                },
+                "played": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "won": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "roundId",
+                "roomId",
+                "entry",
+                "mode",
+                "amount",
+                "result",
+                "at"
+              ],
+              "properties": {
+                "roundId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "roomId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "entry": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "ITEM",
+                        "LOT"
+                      ]
+                    },
+                    "catalogId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "nullable": true
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "CLASSIC",
+                    "DUTCH",
+                    "SEALED",
+                    "MYSTERY"
+                  ]
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Importe decimal en Ecicoin.",
+                  "example": "1250.00"
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "WON",
+                    "LOST"
+                  ]
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Leaderboard": {
+        "type": "object",
+        "required": [
+          "week",
+          "from",
+          "to",
+          "entries",
+          "me",
+          "updatedAt"
+        ],
+        "properties": {
+          "week": {
+            "type": "string",
+            "enum": [
+              "current",
+              "previous"
+            ]
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardEntry"
+            }
+          },
+          "me": {
+            "type": "object",
+            "required": [
+              "rank",
+              "alias",
+              "wins",
+              "bids",
+              "spent",
+              "favoriteMode",
+              "badges",
+              "mine"
+            ],
+            "properties": {
+              "rank": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "alias": {
+                "type": "string"
+              },
+              "wins": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bids": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "spent": {
+                "type": "string",
+                "description": "Importe decimal en Ecicoin.",
+                "example": "1250.00"
+              },
+              "favoriteMode": {
+                "type": "string",
+                "enum": [
+                  "CLASSIC",
+                  "DUTCH",
+                  "SEALED",
+                  "MYSTERY",
+                  null
+                ],
+                "nullable": true
+              },
+              "badges": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "mine": {
+                "type": "boolean"
+              }
+            },
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "required": [
+          "rank",
+          "alias",
+          "wins",
+          "bids",
+          "spent",
+          "favoriteMode",
+          "badges",
+          "mine"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "alias": {
+            "type": "string"
+          },
+          "wins": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bids": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spent": {
+            "type": "string",
+            "description": "Importe decimal en Ecicoin.",
+            "example": "1250.00"
+          },
+          "favoriteMode": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "DUTCH",
+              "SEALED",
+              "MYSTERY",
+              null
+            ],
+            "nullable": true
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mine": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
