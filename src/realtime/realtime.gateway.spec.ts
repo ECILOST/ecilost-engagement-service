@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ROOMS_PER_CONNECTION, RealtimeGateway } from './realtime.gateway.js';
 import type { RoomAccess } from './room-access.js';
 
@@ -10,8 +11,9 @@ function joining(access: RoomAccess = 'granted', tokenOwner: string | null = 'al
   const check = vi.fn().mockResolvedValue(access);
   const gateway = new RealtimeGateway({ verify } as never, { check } as never);
   const client = {
+    connected: true,
     rooms: new Set<string>(['socket-id', 'user:alice']),
-    data: { userId: 'alice' },
+    data: { userId: 'alice', expiresAt: Date.now() + 60_000 },
     handshake: { auth: { token: 'handshake-jwt' } },
     join: vi.fn(async (channel: string) => { client.rooms.add(channel); }),
   };
@@ -72,20 +74,84 @@ describe('RealtimeGateway room.join', () => {
     await expect(join({ roomId: ROOM, token: 'jwt' })).resolves.toEqual({ ok: true, roomId: ROOM });
     expect(check).not.toHaveBeenCalled();
   });
+
+  it('rechaza una solicitud si la sesion vence durante la consulta de acceso', async () => {
+    const { check, client, join } = joining();
+    check.mockImplementationOnce(async () => {
+      client.data.expiresAt = Date.now();
+      return 'granted';
+    });
+
+    await expect(join({ roomId: ROOM })).resolves.toEqual({ ok: false, reason: 'unauthorized' });
+    expect(client.join).not.toHaveBeenCalled();
+  });
 });
 
-function setup(verifiedUser: string | null = 'alice') {
+function setup(verifiedUser: string | null = 'alice', expiresAt = Date.now() + 60_000) {
   const emitted: Array<{ channel: string; name: string; payload: Record<string, unknown> }> = [];
   let middleware: (socket: unknown, next: (error?: Error) => void) => Promise<void> = async () => undefined;
   const server = {
     to: (channel: string) => ({ emit: (name: string, payload: Record<string, unknown>) => emitted.push({ channel, name, payload }) }),
     use: (fn: typeof middleware) => { middleware = fn; },
   };
-  const gateway = new RealtimeGateway({ verify: vi.fn().mockResolvedValue(verifiedUser) } as never, { check: vi.fn() } as never);
+  const verifySession = vi.fn().mockResolvedValue(verifiedUser ? { userId: verifiedUser, expiresAt } : null);
+  const gateway = new RealtimeGateway({ verifySession } as never, { check: vi.fn() } as never);
   (gateway as unknown as { server: typeof server }).server = server;
   gateway.afterInit(server as never);
   return { gateway, emitted, connect: (socket: unknown, next: (error?: Error) => void) => middleware(socket, next) };
 }
+
+describe('Vencimiento de la sesion WebSocket', () => {
+  afterEach(() => vi.useRealTimers());
+
+  function socketFixture() {
+    return Object.assign(new EventEmitter(), {
+      handshake: { auth: { token: 'jwt' } },
+      data: {} as Record<string, unknown>,
+      join: vi.fn(),
+      disconnect: vi.fn(),
+    });
+  }
+
+  it('mantiene el socket conectado hasta el vencimiento y lo cierra al alcanzarlo', async () => {
+    vi.useFakeTimers();
+    const { connect, gateway } = setup('alice', Date.now() + 2_000);
+    const socket = socketFixture();
+
+    await connect(socket, vi.fn());
+    gateway.handleConnection(socket as never);
+    vi.advanceTimersByTime(1_999);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(socket.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('cancela el temporizador cuando el socket se desconecta antes del vencimiento', async () => {
+    vi.useFakeTimers();
+    const { connect, gateway } = setup('alice', Date.now() + 2_000);
+    const socket = socketFixture();
+
+    await connect(socket, vi.fn());
+    gateway.handleConnection(socket as never);
+    socket.emit('disconnect');
+
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(2_000);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('rechaza una sesion vencida antes de unirla a su canal personal', async () => {
+    const { connect } = setup('alice', Date.now());
+    const socket = socketFixture();
+    const next = vi.fn();
+
+    await connect(socket, next);
+
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(socket.join).not.toHaveBeenCalled();
+  });
+});
 
 const bid = {
   eventId: 'bid-2', eventType: 'auction.bid.accepted.v1' as const, occurredAt: '2030-01-01T10:00:00.000Z',

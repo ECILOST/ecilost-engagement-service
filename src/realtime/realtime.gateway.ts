@@ -1,6 +1,7 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
@@ -14,6 +15,7 @@ import { TokenVerifier } from './token-verifier.js';
 const ROOM_PREFIX = 'room:';
 const roomChannel = (roomId: string) => `${ROOM_PREFIX}${roomId}`;
 const userChannel = (userId: string) => `user:${userId}`;
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
 /** Los roomId de auction son UUID: cualquier otro texto no es una sala. */
 const ROOM_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,7 +42,7 @@ export const MAX_ROOMS_PER_CONNECTION = 5;
  * cliente vuelve a consultar `GET /rooms/:roomId/state` en Auction.
  */
 @WebSocketGateway({ namespace: '/realtime', cors: { origin: true } })
-export class RealtimeGateway implements OnGatewayInit {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer() private server: Namespace;
 
   constructor(private readonly tokens: TokenVerifier, private readonly rooms: RoomAccessVerifier) {}
@@ -48,12 +50,34 @@ export class RealtimeGateway implements OnGatewayInit {
   afterInit(server: Namespace) {
     // El middleware autentica antes de aceptar la conexion.
     server.use(async (socket, next) => {
-      const userId = await this.tokens.verify(socket.handshake.auth?.token);
-      if (!userId) return next(new Error('El token de acceso no es valido.'));
+      const session = await this.tokens.verifySession(socket.handshake.auth?.token);
+      if (!session || session.expiresAt <= Date.now()) {
+        return next(new Error('El token de acceso no es valido.'));
+      }
+      const { userId, expiresAt } = session;
       socket.data.userId = userId;
+      socket.data.expiresAt = expiresAt;
       await socket.join(userChannel(userId));
       next();
     });
+  }
+
+  handleConnection(socket: Socket) {
+    const expiresAt: number = socket.data.expiresAt;
+    let timer: NodeJS.Timeout;
+    const checkExpiry = () => {
+      const remaining = expiresAt - Date.now();
+      if (!(remaining > 0)) {
+        socket.disconnect();
+        return;
+      }
+
+      // Node recorta intervalos superiores al maximo a 1 ms.
+      timer = setTimeout(checkExpiry, Math.min(Math.ceil(remaining), MAX_TIMEOUT_MS));
+    };
+
+    socket.once('disconnect', () => clearTimeout(timer));
+    checkExpiry();
   }
 
   /**
@@ -62,8 +86,7 @@ export class RealtimeGateway implements OnGatewayInit {
    *
    * - el roomId debe tener forma de UUID;
    * - el token debe seguir vigente y ser de quien abrio la conexion. El cliente manda el
-   *   actual en cada `room.join`, porque el del handshake vence a los quince minutos y la
-   *   conexion puede durar mas;
+   *   actual en cada `room.join`. El vencimiento del token del handshake limita la conexion;
    * - auction debe confirmar que la sala existe y que esa persona puede verla (ver
    *   `RoomAccessVerifier`; no exige estar inscrito, para no romper el modo seguimiento);
    * - una conexion escucha a lo sumo `MAX_ROOMS_PER_CONNECTION` salas.
@@ -74,6 +97,7 @@ export class RealtimeGateway implements OnGatewayInit {
   async joinRoom(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId?: unknown; token?: unknown }) {
     const roomId = body?.roomId;
     if (typeof roomId !== 'string' || !ROOM_ID.test(roomId)) return { ok: false, reason: 'invalid-room' };
+    if (!this.hasActiveSession(client)) return { ok: false, reason: 'unauthorized' };
     if (client.rooms.has(roomChannel(roomId))) return { ok: true, roomId };
 
     const token = typeof body.token === 'string' && body.token ? body.token : client.handshake.auth?.token;
@@ -85,6 +109,7 @@ export class RealtimeGateway implements OnGatewayInit {
 
     const access = await this.rooms.check(roomId, token as string);
     if (access !== 'granted') return { ok: false, reason: access };
+    if (!this.hasActiveSession(client)) return { ok: false, reason: 'unauthorized' };
 
     await client.join(roomChannel(roomId));
     return { ok: true, roomId };
@@ -94,6 +119,10 @@ export class RealtimeGateway implements OnGatewayInit {
   async leaveRoom(@ConnectedSocket() client: Socket, @MessageBody() body: { roomId?: unknown }) {
     if (typeof body?.roomId === 'string') await client.leave(roomChannel(body.roomId));
     return { ok: true };
+  }
+
+  private hasActiveSession(socket: Socket): boolean {
+    return socket.connected && socket.data.expiresAt > Date.now();
   }
 
   publish(event: AuctionEvent) {

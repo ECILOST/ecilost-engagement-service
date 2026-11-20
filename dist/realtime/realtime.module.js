@@ -13,7 +13,7 @@ let RealtimeModule = class RealtimeModule {
 RealtimeModule = __decorate([
     Module({
         providers: [TokenVerifier, RoomAccessVerifier, RealtimeGateway],
-        exports: [RealtimeGateway, TokenVerifier],
+        exports: [RealtimeGateway, TokenVerifier, RoomAccessVerifier],
     })
 ], RealtimeModule);
 export { RealtimeModule };

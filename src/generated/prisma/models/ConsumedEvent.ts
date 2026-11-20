@@ -37,6 +37,7 @@ export type ConsumedEventSumAggregateOutputType = {
 export type ConsumedEventMinAggregateOutputType = {
   eventId: string | null
   eventType: string | null
+  roomId: string | null
   occurredAt: Date | null
   receivedAt: Date | null
   processedAt: Date | null
@@ -47,6 +48,7 @@ export type ConsumedEventMinAggregateOutputType = {
 export type ConsumedEventMaxAggregateOutputType = {
   eventId: string | null
   eventType: string | null
+  roomId: string | null
   occurredAt: Date | null
   receivedAt: Date | null
   processedAt: Date | null
@@ -57,6 +59,7 @@ export type ConsumedEventMaxAggregateOutputType = {
 export type ConsumedEventCountAggregateOutputType = {
   eventId: number
   eventType: number
+  roomId: number
   payload: number
   occurredAt: number
   receivedAt: number
@@ -78,6 +81,7 @@ export type ConsumedEventSumAggregateInputType = {
 export type ConsumedEventMinAggregateInputType = {
   eventId?: true
   eventType?: true
+  roomId?: true
   occurredAt?: true
   receivedAt?: true
   processedAt?: true
@@ -88,6 +92,7 @@ export type ConsumedEventMinAggregateInputType = {
 export type ConsumedEventMaxAggregateInputType = {
   eventId?: true
   eventType?: true
+  roomId?: true
   occurredAt?: true
   receivedAt?: true
   processedAt?: true
@@ -98,6 +103,7 @@ export type ConsumedEventMaxAggregateInputType = {
 export type ConsumedEventCountAggregateInputType = {
   eventId?: true
   eventType?: true
+  roomId?: true
   payload?: true
   occurredAt?: true
   receivedAt?: true
@@ -196,6 +202,7 @@ export type ConsumedEventGroupByArgs<ExtArgs extends runtime.Types.Extensions.In
 export type ConsumedEventGroupByOutputType = {
   eventId: string
   eventType: string
+  roomId: string | null
   payload: runtime.JsonValue
   occurredAt: Date
   receivedAt: Date
@@ -230,6 +237,7 @@ export type ConsumedEventWhereInput = {
   NOT?: Prisma.ConsumedEventWhereInput | Prisma.ConsumedEventWhereInput[]
   eventId?: Prisma.StringFilter<"ConsumedEvent"> | string
   eventType?: Prisma.StringFilter<"ConsumedEvent"> | string
+  roomId?: Prisma.StringNullableFilter<"ConsumedEvent"> | string | null
   payload?: Prisma.JsonFilter<"ConsumedEvent">
   occurredAt?: Prisma.DateTimeFilter<"ConsumedEvent"> | Date | string
   receivedAt?: Prisma.DateTimeFilter<"ConsumedEvent"> | Date | string
@@ -241,6 +249,7 @@ export type ConsumedEventWhereInput = {
 export type ConsumedEventOrderByWithRelationInput = {
   eventId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
+  roomId?: Prisma.SortOrderInput | Prisma.SortOrder
   payload?: Prisma.SortOrder
   occurredAt?: Prisma.SortOrder
   receivedAt?: Prisma.SortOrder
@@ -255,6 +264,7 @@ export type ConsumedEventWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.ConsumedEventWhereInput[]
   NOT?: Prisma.ConsumedEventWhereInput | Prisma.ConsumedEventWhereInput[]
   eventType?: Prisma.StringFilter<"ConsumedEvent"> | string
+  roomId?: Prisma.StringNullableFilter<"ConsumedEvent"> | string | null
   payload?: Prisma.JsonFilter<"ConsumedEvent">
   occurredAt?: Prisma.DateTimeFilter<"ConsumedEvent"> | Date | string
   receivedAt?: Prisma.DateTimeFilter<"ConsumedEvent"> | Date | string
@@ -266,6 +276,7 @@ export type ConsumedEventWhereUniqueInput = Prisma.AtLeast<{
 export type ConsumedEventOrderByWithAggregationInput = {
   eventId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
+  roomId?: Prisma.SortOrderInput | Prisma.SortOrder
   payload?: Prisma.SortOrder
   occurredAt?: Prisma.SortOrder
   receivedAt?: Prisma.SortOrder
@@ -285,6 +296,7 @@ export type ConsumedEventScalarWhereWithAggregatesInput = {
   NOT?: Prisma.ConsumedEventScalarWhereWithAggregatesInput | Prisma.ConsumedEventScalarWhereWithAggregatesInput[]
   eventId?: Prisma.StringWithAggregatesFilter<"ConsumedEvent"> | string
   eventType?: Prisma.StringWithAggregatesFilter<"ConsumedEvent"> | string
+  roomId?: Prisma.StringNullableWithAggregatesFilter<"ConsumedEvent"> | string | null
   payload?: Prisma.JsonWithAggregatesFilter<"ConsumedEvent">
   occurredAt?: Prisma.DateTimeWithAggregatesFilter<"ConsumedEvent"> | Date | string
   receivedAt?: Prisma.DateTimeWithAggregatesFilter<"ConsumedEvent"> | Date | string
@@ -296,6 +308,7 @@ export type ConsumedEventScalarWhereWithAggregatesInput = {
 export type ConsumedEventCreateInput = {
   eventId: string
   eventType: string
+  roomId?: string | null
   payload: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt: Date | string
   receivedAt?: Date | string
@@ -307,6 +320,7 @@ export type ConsumedEventCreateInput = {
 export type ConsumedEventUncheckedCreateInput = {
   eventId: string
   eventType: string
+  roomId?: string | null
   payload: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt: Date | string
   receivedAt?: Date | string
@@ -318,6 +332,7 @@ export type ConsumedEventUncheckedCreateInput = {
 export type ConsumedEventUpdateInput = {
   eventId?: Prisma.StringFieldUpdateOperationsInput | string
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   payload?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   receivedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -329,6 +344,7 @@ export type ConsumedEventUpdateInput = {
 export type ConsumedEventUncheckedUpdateInput = {
   eventId?: Prisma.StringFieldUpdateOperationsInput | string
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   payload?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   receivedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -340,6 +356,7 @@ export type ConsumedEventUncheckedUpdateInput = {
 export type ConsumedEventCreateManyInput = {
   eventId: string
   eventType: string
+  roomId?: string | null
   payload: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt: Date | string
   receivedAt?: Date | string
@@ -351,6 +368,7 @@ export type ConsumedEventCreateManyInput = {
 export type ConsumedEventUpdateManyMutationInput = {
   eventId?: Prisma.StringFieldUpdateOperationsInput | string
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   payload?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   receivedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -362,6 +380,7 @@ export type ConsumedEventUpdateManyMutationInput = {
 export type ConsumedEventUncheckedUpdateManyInput = {
   eventId?: Prisma.StringFieldUpdateOperationsInput | string
   eventType?: Prisma.StringFieldUpdateOperationsInput | string
+  roomId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   payload?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   occurredAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   receivedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -373,6 +392,7 @@ export type ConsumedEventUncheckedUpdateManyInput = {
 export type ConsumedEventCountOrderByAggregateInput = {
   eventId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
+  roomId?: Prisma.SortOrder
   payload?: Prisma.SortOrder
   occurredAt?: Prisma.SortOrder
   receivedAt?: Prisma.SortOrder
@@ -388,6 +408,7 @@ export type ConsumedEventAvgOrderByAggregateInput = {
 export type ConsumedEventMaxOrderByAggregateInput = {
   eventId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
+  roomId?: Prisma.SortOrder
   occurredAt?: Prisma.SortOrder
   receivedAt?: Prisma.SortOrder
   processedAt?: Prisma.SortOrder
@@ -398,6 +419,7 @@ export type ConsumedEventMaxOrderByAggregateInput = {
 export type ConsumedEventMinOrderByAggregateInput = {
   eventId?: Prisma.SortOrder
   eventType?: Prisma.SortOrder
+  roomId?: Prisma.SortOrder
   occurredAt?: Prisma.SortOrder
   receivedAt?: Prisma.SortOrder
   processedAt?: Prisma.SortOrder
@@ -411,6 +433,10 @@ export type ConsumedEventSumOrderByAggregateInput = {
 
 export type StringFieldUpdateOperationsInput = {
   set?: string
+}
+
+export type NullableStringFieldUpdateOperationsInput = {
+  set?: string | null
 }
 
 export type DateTimeFieldUpdateOperationsInput = {
@@ -429,15 +455,12 @@ export type IntFieldUpdateOperationsInput = {
   divide?: number
 }
 
-export type NullableStringFieldUpdateOperationsInput = {
-  set?: string | null
-}
-
 
 
 export type ConsumedEventSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   eventId?: boolean
   eventType?: boolean
+  roomId?: boolean
   payload?: boolean
   occurredAt?: boolean
   receivedAt?: boolean
@@ -449,6 +472,7 @@ export type ConsumedEventSelect<ExtArgs extends runtime.Types.Extensions.Interna
 export type ConsumedEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   eventId?: boolean
   eventType?: boolean
+  roomId?: boolean
   payload?: boolean
   occurredAt?: boolean
   receivedAt?: boolean
@@ -460,6 +484,7 @@ export type ConsumedEventSelectCreateManyAndReturn<ExtArgs extends runtime.Types
 export type ConsumedEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   eventId?: boolean
   eventType?: boolean
+  roomId?: boolean
   payload?: boolean
   occurredAt?: boolean
   receivedAt?: boolean
@@ -471,6 +496,7 @@ export type ConsumedEventSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
 export type ConsumedEventSelectScalar = {
   eventId?: boolean
   eventType?: boolean
+  roomId?: boolean
   payload?: boolean
   occurredAt?: boolean
   receivedAt?: boolean
@@ -479,7 +505,7 @@ export type ConsumedEventSelectScalar = {
   lastError?: boolean
 }
 
-export type ConsumedEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"eventId" | "eventType" | "payload" | "occurredAt" | "receivedAt" | "processedAt" | "attempts" | "lastError", ExtArgs["result"]["consumedEvent"]>
+export type ConsumedEventOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"eventId" | "eventType" | "roomId" | "payload" | "occurredAt" | "receivedAt" | "processedAt" | "attempts" | "lastError", ExtArgs["result"]["consumedEvent"]>
 
 export type $ConsumedEventPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "ConsumedEvent"
@@ -487,6 +513,7 @@ export type $ConsumedEventPayload<ExtArgs extends runtime.Types.Extensions.Inter
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     eventId: string
     eventType: string
+    roomId: string | null
     payload: runtime.JsonValue
     occurredAt: Date
     receivedAt: Date
@@ -918,6 +945,7 @@ export interface Prisma__ConsumedEventClient<T, Null = never, ExtArgs extends ru
 export interface ConsumedEventFieldRefs {
   readonly eventId: Prisma.FieldRef<"ConsumedEvent", 'String'>
   readonly eventType: Prisma.FieldRef<"ConsumedEvent", 'String'>
+  readonly roomId: Prisma.FieldRef<"ConsumedEvent", 'String'>
   readonly payload: Prisma.FieldRef<"ConsumedEvent", 'Json'>
   readonly occurredAt: Prisma.FieldRef<"ConsumedEvent", 'DateTime'>
   readonly receivedAt: Prisma.FieldRef<"ConsumedEvent", 'DateTime'>

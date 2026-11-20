@@ -37,13 +37,43 @@ let RoomAccessVerifier = RoomAccessVerifier_1 = class RoomAccessVerifier {
     async check(roomId, token) {
         if (!this.auctionUrl)
             return 'granted';
+        const response = await this.fetchRoom(roomId, token);
+        return typeof response === 'string' ? response : 'granted';
+    }
+    /**
+     * Como `check`, pero ademas devuelve si quien pregunta participa o es el dueño, y en que
+     * estado esta la sala. El chat lo necesita: solo escriben los admitidos antes del inicio
+     * y solo mientras la sala esta en curso. Sin auction configurada no se concede nada,
+     * porque sin esa respuesta no hay forma de saber quien participa.
+     */
+    async lookup(roomId, token) {
+        if (!this.auctionUrl)
+            return { access: 'unavailable' };
+        const response = await this.fetchRoom(roomId, token);
+        if (typeof response === 'string')
+            return { access: response };
+        try {
+            const room = (await response.json());
+            if (typeof room?.status !== 'string')
+                return { access: 'unavailable' };
+            return {
+                access: 'granted',
+                room: { status: room.status, isParticipant: room.isParticipant === true, isOwner: room.isOwner === true },
+            };
+        }
+        catch (error) {
+            this.logger.warn(`Auction devolvio una sala ilegible para ${roomId}: ${String(error)}`);
+            return { access: 'unavailable' };
+        }
+    }
+    async fetchRoom(roomId, token) {
         try {
             const response = await fetch(`${this.auctionUrl}/rooms/${encodeURIComponent(roomId)}`, {
                 headers: { authorization: `Bearer ${token}` },
                 signal: AbortSignal.timeout(AUCTION_TIMEOUT_MS),
             });
             if (response.ok)
-                return 'granted';
+                return response;
             if (response.status === 404 || response.status === 400)
                 return 'not-found';
             if (response.status === 401 || response.status === 403)

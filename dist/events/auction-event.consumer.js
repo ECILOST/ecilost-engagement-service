@@ -218,6 +218,7 @@ let AuctionEventConsumer = AuctionEventConsumer_1 = class AuctionEventConsumer {
             data: [{
                     eventId: event.eventId,
                     eventType: event.eventType,
+                    roomId: event.roomId,
                     occurredAt: new Date(event.occurredAt),
                     payload: event,
                 }],

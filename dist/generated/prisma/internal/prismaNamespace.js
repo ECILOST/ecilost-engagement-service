@@ -68,7 +68,8 @@ export const JsonNull = runtime.JsonNull;
 export const AnyNull = runtime.AnyNull;
 export const ModelName = {
     ConsumedEvent: 'ConsumedEvent',
-    Notification: 'Notification'
+    Notification: 'Notification',
+    ChatMessage: 'ChatMessage'
 };
 /**
  * Enums
@@ -82,6 +83,7 @@ export const TransactionIsolationLevel = runtime.makeStrictEnum({
 export const ConsumedEventScalarFieldEnum = {
     eventId: 'eventId',
     eventType: 'eventType',
+    roomId: 'roomId',
     payload: 'payload',
     occurredAt: 'occurredAt',
     receivedAt: 'receivedAt',
@@ -98,6 +100,13 @@ export const NotificationScalarFieldEnum = {
     payload: 'payload',
     createdAt: 'createdAt',
     readAt: 'readAt'
+};
+export const ChatMessageScalarFieldEnum = {
+    id: 'id',
+    roomId: 'roomId',
+    authorId: 'authorId',
+    body: 'body',
+    createdAt: 'createdAt'
 };
 export const SortOrder = {
     asc: 'asc',

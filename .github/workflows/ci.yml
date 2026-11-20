@@ -48,6 +48,16 @@ jobs:
           --health-interval 10s
           --health-timeout 10s
           --health-retries 10
+      # Modelo de lectura de la gamificacion (perfil, top semanal, medallas).
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,6 +71,9 @@ jobs:
         run: npm run typecheck
       - name: Tests with coverage
         run: npm run test:cov
+        env:
+          # Con esta variable corren tambien las pruebas del modelo de lectura contra Mongo real.
+          TEST_MONGODB_URL: mongodb://localhost:27017
       - name: Upload LCOV report
         uses: actions/upload-artifact@v4
         with:
