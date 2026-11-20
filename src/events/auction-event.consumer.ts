@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import amqp from 'amqplib';
 import type { Channel, Message } from 'amqplib';
 import { Prisma } from '../generated/prisma/client.js';
+import { recordPaidAward, parsePaidAward, PAID_AWARD_KEY } from '../pickups/paid-award.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import type {
@@ -17,6 +18,7 @@ import type {
 const EXCHANGE = 'ecilost.events';
 const DEAD_LETTER_EXCHANGE = 'ecilost.events.dlx';
 const QUEUE = 'engagement.events.v1';
+const PICKUP_QUEUE = 'engagement.pickups.v1';
 const DEAD_LETTER_QUEUE = 'engagement.events.dlq';
 /** Cuantos `eventId` recientes se recuerdan para no reemitir una reentrega. */
 const RECENT_EVENTS_WINDOW = 5_000;
@@ -159,7 +161,16 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
       for (const routingKey of ROUTING_KEYS) {
         await channel.bindQueue(QUEUE, EXCHANGE, routingKey);
       }
+      await channel.assertQueue(PICKUP_QUEUE, {
+        durable: true,
+        deadLetterExchange: DEAD_LETTER_EXCHANGE,
+        deadLetterRoutingKey: 'engagement.dead',
+      });
+      await channel.bindQueue(PICKUP_QUEUE, EXCHANGE, PAID_AWARD_KEY);
       await channel.prefetch(10);
+      await channel.consume(PICKUP_QUEUE, (message) => {
+        if (message) void this.captureEvent(message, channel);
+      });
       await channel.consume(QUEUE, (message) => {
         if (message) void this.captureEvent(message, channel);
       });
@@ -197,6 +208,23 @@ export class AuctionEventConsumer implements OnModuleInit, OnModuleDestroy {
    */
   private async captureEvent(message: Message, channel: Channel | undefined = this.channel) {
     // Se confirma por el canal que entrego el mensaje: tras una reconexion, el nuevo no lo conoce.
+    if (message.fields?.routingKey === PAID_AWARD_KEY) {
+      const award = parsePaidAward(this.parseBody(message));
+      if (!award || (message.properties.messageId && message.properties.messageId !== award.eventId)) {
+        channel?.nack(message, false, false);
+        return;
+      }
+
+      try {
+        await recordPaidAward(this.prisma, award);
+        channel?.ack(message);
+      } catch (error) {
+        this.logger.error(`Could not persist paid award ${award.eventId}: ${String(error)}`);
+        channel?.nack(message, false, false);
+      }
+      return;
+    }
+
     const event = parseEvent(this.parseBody(message));
     if (!event || (message.properties.messageId && message.properties.messageId !== event.eventId)) {
       this.logger.warn('Rejected malformed or inconsistent Auction event; it was sent to the dead-letter queue.');

@@ -53,7 +53,10 @@ export const AnyNull = runtime.AnyNull
 export const ModelName = {
   ConsumedEvent: 'ConsumedEvent',
   Notification: 'Notification',
-  ChatMessage: 'ChatMessage'
+  ChatMessage: 'ChatMessage',
+  PickupSlot: 'PickupSlot',
+  AuctionPickup: 'AuctionPickup',
+  PickupMessage: 'PickupMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -110,6 +113,45 @@ export const ChatMessageScalarFieldEnum = {
 } as const
 
 export type ChatMessageScalarFieldEnum = (typeof ChatMessageScalarFieldEnum)[keyof typeof ChatMessageScalarFieldEnum]
+
+
+export const PickupSlotScalarFieldEnum = {
+  id: 'id',
+  location: 'location',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  capacity: 'capacity'
+} as const
+
+export type PickupSlotScalarFieldEnum = (typeof PickupSlotScalarFieldEnum)[keyof typeof PickupSlotScalarFieldEnum]
+
+
+export const AuctionPickupScalarFieldEnum = {
+  roundId: 'roundId',
+  roomId: 'roomId',
+  entries: 'entries',
+  winnerId: 'winnerId',
+  status: 'status',
+  slotId: 'slotId',
+  deliveryCodeHash: 'deliveryCodeHash',
+  deliveredAt: 'deliveredAt',
+  deliveredBy: 'deliveredBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AuctionPickupScalarFieldEnum = (typeof AuctionPickupScalarFieldEnum)[keyof typeof AuctionPickupScalarFieldEnum]
+
+
+export const PickupMessageScalarFieldEnum = {
+  id: 'id',
+  roundId: 'roundId',
+  author: 'author',
+  body: 'body',
+  createdAt: 'createdAt'
+} as const
+
+export type PickupMessageScalarFieldEnum = (typeof PickupMessageScalarFieldEnum)[keyof typeof PickupMessageScalarFieldEnum]
 
 
 export const SortOrder = {

@@ -11,4 +11,7 @@
 export type * from './models/ConsumedEvent.js'
 export type * from './models/Notification.js'
 export type * from './models/ChatMessage.js'
+export type * from './models/PickupSlot.js'
+export type * from './models/AuctionPickup.js'
+export type * from './models/PickupMessage.js'
 export type * from './commonInputTypes.js'

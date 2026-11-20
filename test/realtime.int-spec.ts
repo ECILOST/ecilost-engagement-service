@@ -52,8 +52,8 @@ async function until(what: string, check: () => Promise<boolean>, timeoutMs = 30
   throw new Error(`${what} no ocurrio a tiempo. Salida del servicio:\n${output.join('')}`);
 }
 
-function token(userId: string) {
-  return new SignJWT({ role: 'STUDENT' })
+function token(userId: string, role: 'STAFF' | 'STUDENT' = 'STUDENT') {
+  return new SignJWT({ role })
     .setProtectedHeader({ alg: 'RS256', kid: 'it' })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -131,7 +131,7 @@ beforeAll(async () => {
 
   // Base de pruebas limpia y una cola sin mensajes viejos.
   const prisma = new PrismaClient({ adapter: new PrismaPg(integrationDatabaseUrl) });
-  await prisma.$executeRawUnsafe('TRUNCATE "notifications", "consumed_events"');
+  await prisma.$executeRawUnsafe('TRUNCATE "notifications", "consumed_events", "pickup_messages", "auction_pickups", "pickup_slots"');
   await prisma.$disconnect();
   broker = await amqp.connect(integrationRabbitmqUrl);
   publisher = await broker.createChannel();
@@ -166,6 +166,7 @@ beforeAll(async () => {
     }
   });
   await publisher.purgeQueue(QUEUE);
+  await publisher.purgeQueue('engagement.pickups.v1');
 });
 
 afterAll(async () => {
@@ -173,6 +174,72 @@ afterAll(async () => {
   service?.kill();
   await broker?.close().catch(() => undefined);
   await new Promise((resolve) => fakes?.close(resolve));
+});
+
+describe('Recogidas pagadas', () => {
+  it('abre un chat privado, reserva un único cupo y consume el código una vez', async () => {
+    const roomId = randomUUID();
+    const roundId = randomUUID();
+    const otherRound = randomUUID();
+    const [alice, bob, staff] = await Promise.all([token('alice'), token('bob'), token('operator', 'STAFF')]);
+    function request(path: string, tokenValue: string, body?: object) {
+      return fetch(`${serviceUrl}/${path}`, {
+        method: body ? 'POST' : 'GET',
+        headers: { authorization: `Bearer ${tokenValue}`, 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    }
+    function paid(id: string, winnerId: string) {
+      publish({
+        eventId: `wallet.round.paid:${id}`, eventType: 'wallet.round.paid.v1',
+        roomId, roundId: id, winnerId, occurredAt: new Date().toISOString(), entries: [],
+      });
+    }
+
+    paid(roundId, 'alice');
+    paid(roundId, 'alice');
+    paid(otherRound, 'bob');
+    await until('Se crean ambas recogidas', async () => {
+      const response = await request('pickups/staff', staff);
+      return response.ok && (await response.json()).length === 2;
+    });
+    const inbox = await (await request('notifications', alice)).json();
+    expect(inbox.items.filter((item: { kind: string }) => item.kind === 'PICKUP_READY')).toHaveLength(1);
+    expect((await request(`pickups/mine/${roundId}`, bob)).status).toBe(404);
+    expect((await request('pickups/staff', alice)).status).toBe(403);
+
+    const date = Date.now();
+    const created = await request('pickups/staff/slots', staff, {
+      location: 'Recepción de prueba', startsAt: new Date(date + 60_000).toISOString(),
+      endsAt: new Date(date + 120_000).toISOString(), capacity: 1,
+    });
+    expect(created.status).toBe(201);
+    const { id: slotId } = await created.json();
+    const [first, second] = await Promise.all([
+      request(`pickups/mine/${roundId}/booking`, alice, { slotId }),
+      request(`pickups/mine/${otherRound}/booking`, bob, { slotId }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    const booked = first.ok ? roundId : otherRound;
+    const winner = first.ok ? alice : bob;
+
+    expect((await request(`pickups/mine/${booked}/help`, winner, { message: 'Necesito confirmar el lugar' })).status).toBe(201);
+    expect((await request(`pickups/staff/${booked}/reply`, staff, { message: 'En recepción' })).status).toBe(201);
+
+    const issued = await request(`pickups/mine/${booked}/code`, winner, {});
+    expect(issued.status).toBe(201);
+    const { code } = await issued.json();
+    const db = new PrismaClient({ adapter: new PrismaPg(integrationDatabaseUrl) });
+    try {
+      await db.pickupSlot.update({ where: { id: slotId }, data: { startsAt: new Date(date - 60_000) } });
+    } finally {
+      await db.$disconnect();
+    }
+    const delivery = await request(`pickups/staff/${booked}/delivery`, staff, { code });
+    expect(delivery.status).toBe(201);
+    expect(await delivery.json()).toMatchObject({ status: 'DELIVERED' });
+    expect((await request(`pickups/staff/${booked}/delivery`, staff, { code })).status).toBe(409);
+  });
 });
 
 describe('Tiempo real: RabbitMQ -> engagement -> Socket.IO', () => {

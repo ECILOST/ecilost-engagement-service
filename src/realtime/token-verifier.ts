@@ -34,7 +34,7 @@ export class TokenVerifier {
     return { userId: claims.userId, expiresAt };
   }
 
-  private async verifyClaims(token: unknown): Promise<{ userId: string; exp?: number } | null> {
+  async verifyClaims(token: unknown): Promise<{ userId: string; role: 'STAFF' | 'STUDENT'; exp?: number } | null> {
     if (typeof token !== 'string' || !token) return null;
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
@@ -44,7 +44,7 @@ export class TokenVerifier {
         requiredClaims: ['exp'],
       });
       if (!payload.sub || (payload.role !== 'STAFF' && payload.role !== 'STUDENT')) return null;
-      return { userId: payload.sub, exp: payload.exp };
+      return { userId: payload.sub, role: payload.role, exp: payload.exp };
     } catch {
       return null;
     }
