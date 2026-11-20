@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { Logger } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MAX_ROOMS_PER_CONNECTION } from '../realtime/realtime.gateway.js';
 import { RoomAccessVerifier, type RoomLookup } from '../realtime/room-access.js';
 import { TokenVerifier } from '../realtime/token-verifier.js';
+import type { MedalId } from '../gamification/medals.js';
+import { GamificationReadModel } from '../gamification/read-model.js';
 import { chatAlias, normalizeMessage, SendLimiter } from './chat-rules.js';
 
 const CHAT_PREFIX = 'chat:';
@@ -30,7 +32,15 @@ export interface ChatMessageView {
   alias: string;
   body: string;
   createdAt: string;
+  /**
+   * Medallas que luce el autor (hasta dos). Solo identificadores: no dicen quien es. Sin
+   * gamificacion (o con Mongo caido) el campo no viaja y el chat sigue igual.
+   */
+  badges?: MedalId[];
 }
+
+/** Cuanto se reutilizan las medallas de alguien antes de volver a leerlas. */
+export const BADGES_TTL_MS = 60_000;
 
 /** Lo que la conexion recuerda de cada chat en el que entro. */
 interface ChatMembership {
@@ -62,6 +72,7 @@ export class ChatGateway {
   now: () => number = Date.now;
   private readonly limiter = new SendLimiter(() => this.now());
   private readonly lookups = new Map<string, { at: number; result: RoomLookup }>();
+  private readonly badgeCache = new Map<string, { at: number; badges: MedalId[] }>();
 
   @WebSocketServer() private server: Namespace;
 
@@ -69,6 +80,7 @@ export class ChatGateway {
     private readonly tokens: TokenVerifier,
     private readonly rooms: RoomAccessVerifier,
     private readonly prisma: PrismaService,
+    @Optional() private readonly gamification?: GamificationReadModel,
   ) {}
 
   @SubscribeMessage('chat.join')
@@ -165,6 +177,7 @@ export class ChatGateway {
       alias: chatAlias(roomId, userId),
       body: saved.body,
       createdAt: saved.createdAt.toISOString(),
+      ...this.withBadges((await this.badges([userId]))[userId]),
     };
     this.server?.to(chatChannel(roomId)).emit('chat.message', { ...view, serverTime: new Date(this.now()).toISOString() });
     return { ok: true, message: view };
@@ -177,13 +190,47 @@ export class ChatGateway {
       take: CHAT_HISTORY_SIZE,
       select: { id: true, roomId: true, authorId: true, body: true, createdAt: true },
     });
+    const badges = await this.badges(rows.map((row) => row.authorId));
     return rows.reverse().map((row) => ({
       id: row.id,
       roomId: row.roomId,
       alias: chatAlias(row.roomId, row.authorId),
       body: row.body,
       createdAt: row.createdAt.toISOString(),
+      ...this.withBadges(badges[row.authorId]),
     }));
+  }
+
+  private withBadges(badges: MedalId[] | undefined): { badges?: MedalId[] } {
+    return badges && badges.length > 0 ? { badges } : {};
+  }
+
+  /**
+   * Medallas de los autores, con una cache corta: un mensaje no espera a Mongo si ya se
+   * leyeron hace poco, y si Mongo falla el chat sigue sin medallas en vez de fallar.
+   */
+  private async badges(userIds: string[]): Promise<Record<string, MedalId[]>> {
+    if (!this.gamification?.enabled) return {};
+    const now = this.now();
+    const result: Record<string, MedalId[]> = {};
+    const missing: string[] = [];
+    for (const userId of new Set(userIds)) {
+      const cached = this.badgeCache.get(userId);
+      if (cached && now - cached.at < BADGES_TTL_MS) result[userId] = cached.badges;
+      else missing.push(userId);
+    }
+    if (missing.length === 0) return result;
+    try {
+      const fresh = await this.gamification.badgesFor(missing);
+      for (const userId of missing) {
+        const badges = fresh[userId] ?? [];
+        this.badgeCache.set(userId, { at: now, badges });
+        result[userId] = badges;
+      }
+    } catch (error) {
+      this.logger.warn(`No se pudieron leer las medallas del chat: ${String(error)}`);
+    }
+    return result;
   }
 
   /**

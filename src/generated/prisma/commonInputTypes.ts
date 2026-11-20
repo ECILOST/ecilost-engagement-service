@@ -230,6 +230,23 @@ export type EnumNotificationKindWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedEnumNotificationKindFilter<$PrismaModel>
 }
 
+export type EnumPickupStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.PickupStatus | Prisma.EnumPickupStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel> | $Enums.PickupStatus
+}
+
+export type EnumPickupStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.PickupStatus | Prisma.EnumPickupStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPickupStatusWithAggregatesFilter<$PrismaModel> | $Enums.PickupStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel>
+}
+
 export type NestedStringFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -430,6 +447,23 @@ export type NestedEnumNotificationKindWithAggregatesFilter<$PrismaModel = never>
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumNotificationKindFilter<$PrismaModel>
   _max?: Prisma.NestedEnumNotificationKindFilter<$PrismaModel>
+}
+
+export type NestedEnumPickupStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.PickupStatus | Prisma.EnumPickupStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel> | $Enums.PickupStatus
+}
+
+export type NestedEnumPickupStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.PickupStatus | Prisma.EnumPickupStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.PickupStatus[] | Prisma.ListEnumPickupStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumPickupStatusWithAggregatesFilter<$PrismaModel> | $Enums.PickupStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumPickupStatusFilter<$PrismaModel>
 }
 
 

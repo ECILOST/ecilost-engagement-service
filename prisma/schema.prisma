@@ -13,6 +13,7 @@ enum NotificationKind {
   OUTBID
   ROUND_CLOSED
   ROUND_WON
+  PICKUP_READY
 }
 
 model ConsumedEvent {
@@ -61,4 +62,56 @@ model ChatMessage {
 
   @@index([roomId, createdAt])
   @@map("chat_messages")
+}
+
+enum PickupStatus {
+  PENDING
+  BOOKED
+  NEEDS_HELP
+  DELIVERED
+}
+
+model PickupSlot {
+  id        String   @id @default(uuid())
+  location  String
+  startsAt  DateTime
+  endsAt    DateTime
+  capacity  Int
+  pickups   AuctionPickup[]
+
+  @@unique([location, startsAt, endsAt])
+  @@index([startsAt])
+  @@map("pickup_slots")
+}
+
+model AuctionPickup {
+  roundId        String       @id
+  roomId         String
+  entries        Json         @default("[]")
+  messages       PickupMessage[]
+  winnerId       String
+  status         PickupStatus @default(PENDING)
+  slotId         String?
+  slot           PickupSlot?  @relation(fields: [slotId], references: [id], onDelete: Restrict)
+  deliveryCodeHash String?
+  deliveredAt    DateTime?
+  deliveredBy    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([winnerId, createdAt])
+  @@index([slotId, status])
+  @@map("auction_pickups")
+}
+
+model PickupMessage {
+  id        String        @id @default(uuid())
+  roundId   String
+  pickup    AuctionPickup @relation(fields: [roundId], references: [roundId], onDelete: Cascade)
+  author    String
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([roundId, createdAt])
+  @@map("pickup_messages")
 }

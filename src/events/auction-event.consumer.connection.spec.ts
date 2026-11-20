@@ -63,7 +63,8 @@ describe('AuctionEventConsumer connection', () => {
     await vi.advanceTimersByTimeAsync(5_000);
 
     expect(connect).toHaveBeenCalledTimes(2);
-    expect(second.channel.consume).toHaveBeenCalledOnce();
+    expect(second.channel.consume).toHaveBeenCalledWith('engagement.events.v1', expect.any(Function));
+    expect(second.channel.consume).toHaveBeenCalledWith('engagement.pickups.v1', expect.any(Function));
     await subject.onModuleDestroy();
   });
 });

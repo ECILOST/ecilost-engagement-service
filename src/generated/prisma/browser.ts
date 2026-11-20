@@ -32,3 +32,18 @@ export type Notification = Prisma.NotificationModel
  * 
  */
 export type ChatMessage = Prisma.ChatMessageModel
+/**
+ * Model PickupSlot
+ * 
+ */
+export type PickupSlot = Prisma.PickupSlotModel
+/**
+ * Model AuctionPickup
+ * 
+ */
+export type AuctionPickup = Prisma.AuctionPickupModel
+/**
+ * Model PickupMessage
+ * 
+ */
+export type PickupMessage = Prisma.PickupMessageModel

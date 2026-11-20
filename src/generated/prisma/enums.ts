@@ -12,7 +12,18 @@
 export const NotificationKind = {
   OUTBID: 'OUTBID',
   ROUND_CLOSED: 'ROUND_CLOSED',
-  ROUND_WON: 'ROUND_WON'
+  ROUND_WON: 'ROUND_WON',
+  PICKUP_READY: 'PICKUP_READY'
 } as const
 
 export type NotificationKind = (typeof NotificationKind)[keyof typeof NotificationKind]
+
+
+export const PickupStatus = {
+  PENDING: 'PENDING',
+  BOOKED: 'BOOKED',
+  NEEDS_HELP: 'NEEDS_HELP',
+  DELIVERED: 'DELIVERED'
+} as const
+
+export type PickupStatus = (typeof PickupStatus)[keyof typeof PickupStatus]

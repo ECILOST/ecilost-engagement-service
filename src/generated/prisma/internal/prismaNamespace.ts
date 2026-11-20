@@ -399,7 +399,10 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 export const ModelName = {
   ConsumedEvent: 'ConsumedEvent',
   Notification: 'Notification',
-  ChatMessage: 'ChatMessage'
+  ChatMessage: 'ChatMessage',
+  PickupSlot: 'PickupSlot',
+  AuctionPickup: 'AuctionPickup',
+  PickupMessage: 'PickupMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -415,7 +418,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "consumedEvent" | "notification" | "chatMessage"
+    modelProps: "consumedEvent" | "notification" | "chatMessage" | "pickupSlot" | "auctionPickup" | "pickupMessage"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -641,6 +644,228 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PickupSlot: {
+      payload: Prisma.$PickupSlotPayload<ExtArgs>
+      fields: Prisma.PickupSlotFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PickupSlotFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PickupSlotFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        findFirst: {
+          args: Prisma.PickupSlotFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PickupSlotFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        findMany: {
+          args: Prisma.PickupSlotFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>[]
+        }
+        create: {
+          args: Prisma.PickupSlotCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        createMany: {
+          args: Prisma.PickupSlotCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PickupSlotCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>[]
+        }
+        delete: {
+          args: Prisma.PickupSlotDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        update: {
+          args: Prisma.PickupSlotUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        deleteMany: {
+          args: Prisma.PickupSlotDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PickupSlotUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PickupSlotUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>[]
+        }
+        upsert: {
+          args: Prisma.PickupSlotUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupSlotPayload>
+        }
+        aggregate: {
+          args: Prisma.PickupSlotAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePickupSlot>
+        }
+        groupBy: {
+          args: Prisma.PickupSlotGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PickupSlotGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PickupSlotCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PickupSlotCountAggregateOutputType> | number
+        }
+      }
+    }
+    AuctionPickup: {
+      payload: Prisma.$AuctionPickupPayload<ExtArgs>
+      fields: Prisma.AuctionPickupFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.AuctionPickupFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.AuctionPickupFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        findFirst: {
+          args: Prisma.AuctionPickupFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.AuctionPickupFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        findMany: {
+          args: Prisma.AuctionPickupFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>[]
+        }
+        create: {
+          args: Prisma.AuctionPickupCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        createMany: {
+          args: Prisma.AuctionPickupCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.AuctionPickupCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>[]
+        }
+        delete: {
+          args: Prisma.AuctionPickupDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        update: {
+          args: Prisma.AuctionPickupUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        deleteMany: {
+          args: Prisma.AuctionPickupDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.AuctionPickupUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.AuctionPickupUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>[]
+        }
+        upsert: {
+          args: Prisma.AuctionPickupUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$AuctionPickupPayload>
+        }
+        aggregate: {
+          args: Prisma.AuctionPickupAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateAuctionPickup>
+        }
+        groupBy: {
+          args: Prisma.AuctionPickupGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AuctionPickupGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.AuctionPickupCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AuctionPickupCountAggregateOutputType> | number
+        }
+      }
+    }
+    PickupMessage: {
+      payload: Prisma.$PickupMessagePayload<ExtArgs>
+      fields: Prisma.PickupMessageFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PickupMessageFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PickupMessageFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        findFirst: {
+          args: Prisma.PickupMessageFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PickupMessageFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        findMany: {
+          args: Prisma.PickupMessageFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>[]
+        }
+        create: {
+          args: Prisma.PickupMessageCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        createMany: {
+          args: Prisma.PickupMessageCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PickupMessageCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>[]
+        }
+        delete: {
+          args: Prisma.PickupMessageDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        update: {
+          args: Prisma.PickupMessageUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        deleteMany: {
+          args: Prisma.PickupMessageDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PickupMessageUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PickupMessageUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>[]
+        }
+        upsert: {
+          args: Prisma.PickupMessageUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PickupMessagePayload>
+        }
+        aggregate: {
+          args: Prisma.PickupMessageAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePickupMessage>
+        }
+        groupBy: {
+          args: Prisma.PickupMessageGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PickupMessageGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PickupMessageCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PickupMessageCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -718,6 +943,45 @@ export const ChatMessageScalarFieldEnum = {
 } as const
 
 export type ChatMessageScalarFieldEnum = (typeof ChatMessageScalarFieldEnum)[keyof typeof ChatMessageScalarFieldEnum]
+
+
+export const PickupSlotScalarFieldEnum = {
+  id: 'id',
+  location: 'location',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  capacity: 'capacity'
+} as const
+
+export type PickupSlotScalarFieldEnum = (typeof PickupSlotScalarFieldEnum)[keyof typeof PickupSlotScalarFieldEnum]
+
+
+export const AuctionPickupScalarFieldEnum = {
+  roundId: 'roundId',
+  roomId: 'roomId',
+  entries: 'entries',
+  winnerId: 'winnerId',
+  status: 'status',
+  slotId: 'slotId',
+  deliveryCodeHash: 'deliveryCodeHash',
+  deliveredAt: 'deliveredAt',
+  deliveredBy: 'deliveredBy',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AuctionPickupScalarFieldEnum = (typeof AuctionPickupScalarFieldEnum)[keyof typeof AuctionPickupScalarFieldEnum]
+
+
+export const PickupMessageScalarFieldEnum = {
+  id: 'id',
+  roundId: 'roundId',
+  author: 'author',
+  body: 'body',
+  createdAt: 'createdAt'
+} as const
+
+export type PickupMessageScalarFieldEnum = (typeof PickupMessageScalarFieldEnum)[keyof typeof PickupMessageScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -833,6 +1097,20 @@ export type EnumNotificationKindFieldRefInput<$PrismaModel> = FieldRefInputType<
  * Reference to a field of type 'NotificationKind[]'
  */
 export type ListEnumNotificationKindFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'NotificationKind[]'>
+    
+
+
+/**
+ * Reference to a field of type 'PickupStatus'
+ */
+export type EnumPickupStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PickupStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'PickupStatus[]'
+ */
+export type ListEnumPickupStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'PickupStatus[]'>
     
 
 
@@ -1003,6 +1281,9 @@ export type GlobalOmitConfig = {
   consumedEvent?: Prisma.ConsumedEventOmit
   notification?: Prisma.NotificationOmit
   chatMessage?: Prisma.ChatMessageOmit
+  pickupSlot?: Prisma.PickupSlotOmit
+  auctionPickup?: Prisma.AuctionPickupOmit
+  pickupMessage?: Prisma.PickupMessageOmit
 }
 
 /* Types for Logging */

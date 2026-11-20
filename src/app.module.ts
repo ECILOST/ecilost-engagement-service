@@ -3,7 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { ActivityModule } from './activity/activity.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { EventsModule } from './events/events.module.js';
+import { GamificationModule } from './gamification/gamification.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { PickupsModule } from './pickups/pickups.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -14,6 +16,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
     NotificationsModule,
     ChatModule,
     ActivityModule,
+    GamificationModule,
+    PickupsModule,
   ],
 })
 export class AppModule {}
