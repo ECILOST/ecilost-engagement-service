@@ -50,6 +50,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -57,8 +59,14 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
-      - name: Tests
-        run: npm test --if-present
+      - name: Tests with coverage
+        run: npm run test:cov
+      - name: Upload LCOV report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
       - name: Build
         run: npm run build
       # Levanta dist/main.js como el contenedor, publica eventos en RabbitMQ y exige que
@@ -68,6 +76,13 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://engagement:engagement@localhost:5437/ecilost_engagement_it?schema=public
           TEST_RABBITMQ_URL: amqp://ecilost:ecilost@localhost:5672/engagement_it
+
+  sonarqube:
+    needs: node
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    uses: ./.github/workflows/sonarcloud.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # Imagenes en GitHub Container Registry (gratis para paquetes publicos) en lugar de ACR.
   publish-image:

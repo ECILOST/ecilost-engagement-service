@@ -28,3 +28,7 @@ node_modules/
 .idea
 
 target/
+
+# SonarQube and coverage reports
+/.scannerwork/
+/coverage/
