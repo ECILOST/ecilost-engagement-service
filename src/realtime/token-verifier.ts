@@ -37,7 +37,12 @@ export class TokenVerifier {
   private async verifyClaims(token: unknown): Promise<{ userId: string; exp?: number } | null> {
     if (typeof token !== 'string' || !token) return null;
     try {
-      const { payload } = await jwtVerify(token, this.jwks, { issuer: this.issuer, audience: this.audience, algorithms: ['RS256'] });
+      const { payload } = await jwtVerify(token, this.jwks, {
+        issuer: this.issuer,
+        audience: this.audience,
+        algorithms: ['RS256'],
+        requiredClaims: ['exp'],
+      });
       if (!payload.sub || (payload.role !== 'STAFF' && payload.role !== 'STUDENT')) return null;
       return { userId: payload.sub, exp: payload.exp };
     } catch {
