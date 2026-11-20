@@ -23,7 +23,12 @@ export class TokenVerifier {
   async verify(token: unknown): Promise<string | null> {
     if (typeof token !== 'string' || !token) return null;
     try {
-      const { payload } = await jwtVerify(token, this.jwks, { issuer: this.issuer, audience: this.audience, algorithms: ['RS256'] });
+      const { payload } = await jwtVerify(token, this.jwks, {
+        issuer: this.issuer,
+        audience: this.audience,
+        algorithms: ['RS256'],
+        requiredClaims: ['exp'],
+      });
       if (!payload.sub || (payload.role !== 'STAFF' && payload.role !== 'STUDENT')) return null;
       return payload.sub;
     } catch {
