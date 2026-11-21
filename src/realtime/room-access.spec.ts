@@ -25,6 +25,16 @@ describe('RoomAccessVerifier', () => {
   });
 
   it.each([
+    ['https://auction.test', 'https://auction.test'],
+    ['https://auction.test/api////', 'https://auction.test/api'],
+    ['https://auction.test/' + '/'.repeat(20_000) + 'x', 'https://auction.test/' + '/'.repeat(20_000) + 'x'],
+  ])('normaliza las barras finales sin alterar el resto de la URL', async (input, base) => {
+    fetch.mockResolvedValue({ ok: true, status: 200 });
+    await expect(verifier(input).check(ROOM, 'jwt')).resolves.toBe('granted');
+    expect(fetch).toHaveBeenCalledWith(`${base}/rooms/${ROOM}`, expect.anything());
+  });
+
+  it.each([
     [404, 'not-found'],
     [400, 'not-found'],
     [401, 'denied'],

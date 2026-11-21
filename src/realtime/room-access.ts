@@ -34,7 +34,9 @@ export class RoomAccessVerifier {
 
   constructor(config: ConfigService) {
     const url = config.get<string>('AUCTION_SERVICE_URL');
-    this.auctionUrl = url ? url.replace(/\/+$/, '') : null;
+    let end = url?.length ?? 0;
+    while (end > 0 && url[end - 1] === '/') end -= 1;
+    this.auctionUrl = url ? url.slice(0, end) : null;
     if (!this.auctionUrl) {
       this.logger.warn('AUCTION_SERVICE_URL no esta configurada: room.join solo valida el formato de la sala.');
     }
