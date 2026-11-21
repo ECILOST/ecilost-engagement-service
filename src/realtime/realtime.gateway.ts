@@ -47,6 +47,11 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
 
   constructor(private readonly tokens: TokenVerifier, private readonly rooms: RoomAccessVerifier) {}
 
+  /** El scrape lee el namespace actual, sin mantener un contador paralelo. */
+  get connectedSockets(): number {
+    return this.server?.sockets.size ?? 0;
+  }
+
   afterInit(server: Namespace) {
     // El middleware autentica antes de aceptar la conexion.
     server.use(async (socket, next) => {
