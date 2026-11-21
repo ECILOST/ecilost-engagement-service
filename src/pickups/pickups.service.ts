@@ -55,8 +55,8 @@ export class PickupsService {
 
   async createSlot(input: unknown) {
     const { location, startsAt, endsAt, capacity } = (input ?? {}) as Record<string, unknown>;
-    const start = typeof startsAt === 'string' ? new Date(startsAt) : new Date(NaN);
-    const end = typeof endsAt === 'string' ? new Date(endsAt) : new Date(NaN);
+    const start = typeof startsAt === 'string' ? new Date(startsAt) : new Date(Number.NaN);
+    const end = typeof endsAt === 'string' ? new Date(endsAt) : new Date(Number.NaN);
     if (typeof location !== 'string' || !location.trim() || location.trim().length > 160 ||
       !(start.getTime() > Date.now() && end.getTime() > start.getTime()) ||
       typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1 || capacity > 500) {
