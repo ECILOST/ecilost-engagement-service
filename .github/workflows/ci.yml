@@ -26,7 +26,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: engagement
-          POSTGRES_PASSWORD: engagement
+          POSTGRES_PASSWORD: ${{ secrets.ENGAGEMENT_TEST_DB_PASSWORD }}
           POSTGRES_DB: ecilost_engagement_it
         ports:
           - 5437:5432
@@ -87,7 +87,7 @@ jobs:
       - name: Realtime integration tests (PostgreSQL + RabbitMQ + Socket.IO)
         run: npm run test:integration
         env:
-          TEST_DATABASE_URL: postgresql://engagement:engagement@localhost:5437/ecilost_engagement_it?schema=public
+          TEST_DATABASE_URL: postgresql://engagement:${{ secrets.ENGAGEMENT_TEST_DB_PASSWORD }}@localhost:5437/ecilost_engagement_it?schema=public
           TEST_RABBITMQ_URL: amqp://ecilost:ecilost@localhost:5672/engagement_it
 
   sonarqube:
